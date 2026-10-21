@@ -28,14 +28,15 @@ def tail_clusters(world, contact=1.5):
     return np.sort(sizes[sizes > 0])[::-1]
 
 
-def water_pockets(world, cell=1.0, reach=1.0, min_area=20, one_cluster=0.8):
+def water_pockets(world, cell=1.0, reach=1.0, min_area=20, one_cluster=0.8, centers=False):
     """Find water fully enclosed by a membrane: the inside of a vesicle (a ring in 2D).
 
     Paint a grid: cells within `reach` of any bead are 'wall', the rest is water.
     The biggest water region is the open sea. Another water region counts as a
     vesicle if it has at least `min_area` cells and one tail cluster makes at
     least `one_cluster` of its wall (a gap between jammed clumps is not a vesicle).
-    Returns pocket areas.
+    Returns pocket areas, largest first. centers=True also returns the
+    (x, y) middle of each pocket, for marking them on pictures.
     """
     from scipy import ndimage
 
@@ -43,7 +44,7 @@ def water_pockets(world, cell=1.0, reach=1.0, min_area=20, one_cluster=0.8):
     wall = np.zeros((m, m), dtype=bool)
     owner = np.full((m, m), -1)
     if not np.any(world.type == TAIL):
-        return np.array([], dtype=int)
+        return (np.array([], dtype=int), []) if centers else np.array([], dtype=int)
     # only lipids build walls: a loose ion floating in water seals nothing
     has_tail = np.zeros(world.n_mol, dtype=bool)
     has_tail[world.mol[world.type == TAIL]] = True
@@ -72,7 +73,7 @@ def water_pockets(world, cell=1.0, reach=1.0, min_area=20, one_cluster=0.8):
     areas = np.bincount(roots[labels.ravel()], minlength=n + 1)
     areas[0] = 0   # label 0 is wall
     sea = np.argmax(areas)
-    pockets = []
+    pockets, where = [], []
     region = roots[labels]
     ring = int(np.ceil(reach / cell)) + 1
     for k, a in enumerate(areas):
@@ -83,17 +84,27 @@ def water_pockets(world, cell=1.0, reach=1.0, min_area=20, one_cluster=0.8):
         walls = owner[border & (owner >= 0)]
         if len(walls) and np.bincount(walls).max() >= one_cluster * len(walls):
             pockets.append(a)
-    return np.sort(pockets)[::-1]
+            # grid axis 0 is x, axis 1 is y; circular mean handles wrap-around
+            ang = 2 * np.pi * np.argwhere(region == k) / m
+            mid = np.angle(np.mean(np.exp(1j * ang), axis=0)) % (2 * np.pi)
+            where.append(tuple((mid / (2 * np.pi) * m + 0.5) * cell))
+    order = np.argsort(pockets)[::-1]
+    pockets = np.array(pockets, dtype=int)[order]
+    if centers:
+        return pockets, [where[k] for k in order]
+    return pockets
 
 
 def summary(world):
     sizes = tail_clusters(world)
     alone = int(np.sum(sizes == 1))
+    pockets, where = water_pockets(world, centers=True)
     return {
         "step": world.t,
         "clusters": int(np.sum(sizes > 1)),
         "largest": int(sizes[0]) if len(sizes) else 0,
         "free_lipids": alone,
-        "vesicles": len(water_pockets(world)),
+        "vesicles": len(pockets),
+        "vesicle_xy": where,
         "energy_per_lipid": float(world.energy / max(int(np.sum(sizes)), 1)),
     }

@@ -39,6 +39,9 @@ class View:
         sizes = np.where(world.rules.charge[world.type] != 0, 30 + 15 * np.abs(world.rules.charge[world.type]), sizes)
         sizes = sizes * (64 / world.L) ** 2 * (size / 7) ** 2   # same look in bigger boxes
         self.beads = self.ax.scatter(*world._wrapped().T, c=colors, s=sizes, zorder=3)
+        # circles around detected vesicles, so they can be checked by eye
+        self.rings = self.ax.scatter([], [], s=600 * (64 / world.L) ** 2 * (size / 7) ** 2 * 4,
+                                     facecolors="none", edgecolors="#E24B4A", linewidths=2, zorder=4)
         self.text = self.ax.text(0.01, 1.01, "", transform=self.ax.transAxes, fontsize=10)
         self.update()
 
@@ -58,6 +61,8 @@ class View:
     def update(self, info=None):
         self.bonds.set_segments(_bond_segments(self.world))
         self.beads.set_offsets(self.world._wrapped())
+        xy = (info or {}).get("vesicle_xy") or []
+        self.rings.set_offsets(np.array(xy).reshape(-1, 2))
         label = f"{self.title}  step {self.world.t}"
         if info:
             label += f"  clusters {info['clusters']}  largest {info['largest']}  free {info['free_lipids']}"
@@ -70,7 +75,7 @@ class View:
                 k = 0.35 + 0.65 * info["light"]
                 self.ax.set_facecolor(tuple(k * c for c in to_rgb(WATER)))
         self.text.set_text(label)
-        return self.bonds, self.beads, self.text
+        return self.bonds, self.beads, self.rings, self.text
 
     def save(self, path, info=None):
         self.update(info)
