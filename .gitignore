@@ -1,0 +1,11 @@
+# simulation output: regenerate with the experiments
+runs/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# local tool settings
+.claude/
