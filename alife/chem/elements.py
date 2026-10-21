@@ -27,6 +27,8 @@ ELEMENTS = [
     ("pigment",  0,   1.00, 0.8, "#3B6D11", "conjugated ring, oily; absorbs light (later)"),
     ("mineral", -1,   1.00, 0.0, "#888780", "clay/mineral surface site, frozen in place"),
     ("rock",     0,   1.00, 0.0, "#444441", "plain rock, frozen; builds walls and pools"),
+    ("sugar",    0,   1.00, 0.0, "#D4537E", "dissolved molecule too big to cross a membrane (osmotic)"),
+    ("carb",     0,   0.80, 0.0, "#8E5BB5", "one sugar carbon, CH2O. Alone = formaldehyde; chains = sugars"),
 ]
 
 NAMES = [row[0] for row in ELEMENTS]

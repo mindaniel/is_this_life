@@ -27,7 +27,7 @@ from alife.chem import TAIL, Rules, World, add_ions, add_rock_wall, fill_with_li
 from alife.chem.analysis import summary
 from alife.env import Environment, Terrain
 
-FIELDS = ["step", "kT", "clusters", "largest", "free_lipids", "vesicles", "energy_per_lipid", "zones"]
+FIELDS = ["step", "kT", "clusters", "largest", "free_lipids", "vesicles", "energy_per_lipid", "zones", "pockets"]
 
 # zone map, row 0 = bottom. heat = extra kT, sun = share of sunlight
 HEAT = [[0.00, -0.10, 0.00],
@@ -88,7 +88,15 @@ def info(world, env):
     s = summary(world)
     s["kT"] = round(float(world.kT), 3)
     s["zones"] = " ".join(str(c) for c in zone_counts(world).ravel())
+    # x,y,area per vesicle; saved so the log can be re-checked without pictures
+    s["pockets"] = ";".join(f"{x:.1f},{y:.1f},{a}" for (x, y), a in zip(s["vesicle_xy"], s["vesicle_area"]))
     return s
+
+
+def save_frame(world, path):
+    """Bead state, enough to redraw and re-run the detectors later."""
+    np.savez_compressed(path, pos=world._wrapped(), type=world.type, mol=world.mol,
+                        bonds=world.bonds, L=world.L, t=world.t)
 
 
 def draw(view, world, env, s):
@@ -118,6 +126,8 @@ def run_headless(world, env, args):
         s = info(world, env)
         writer.writerow(s)
         log.flush()
+        if s["vesicles"]:
+            save_frame(world, os.path.join(out, f"frame_{world.t:06d}.npz"))
         if len(env.events) > n_events:
             n_events = len(env.events)
             t, x, y = env.events[-1]

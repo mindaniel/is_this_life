@@ -14,6 +14,8 @@ Units: bead size sigma = 1, energy epsilon = 1, mass = 1.
 import numpy as np
 from scipy.spatial import cKDTree
 
+from . import fast
+
 from . import elements as el
 
 HEAD, TAIL = el.INDEX["head"], el.INDEX["tail"]
@@ -87,10 +89,16 @@ class World:
         self.energy = 0.0
         self.flow = None   # optional function pos -> water velocity (currents)
         self.kT_field = None   # optional function pos -> temperature per bead (zones)
+        self.external = None   # optional function pos -> (force, energy), e.g. a pond shore
         self._pairs = None
         self._charged_pairs = None
         self._pos_at_build = None
         self.skin = 0.4
+        self.fast = True   # compiled force loops (alife/chem/fast.py) when numba is installed
+        self.field_every = 10   # steps between re-reading flow and kT_field at bead positions
+        # bead types that also push on beads of their own molecule. Lipids are stiff
+        # (bends), so they skip that; floppy chains made by reactions (sugars) need it
+        self.repel_inside = ()
 
     # ---- building -------------------------------------------------------
     def add_molecule(self, positions, types, bonds=(), bends=(), frozen=False):
@@ -115,6 +123,40 @@ class World:
         self.n_mol += 1
         self._pairs = None
 
+    # ---- reactions: bonds that form and break while running ---------------
+    def add_bond(self, i, j):
+        """Bond beads i and j (a reaction joins them). Their molecules become one."""
+        self.bonds = np.vstack([self.bonds, [i, j]])
+        a, b = self.mol[i], self.mol[j]
+        if a != b:
+            self.mol[self.mol == b] = a
+        self._pairs = None
+
+    def break_bond(self, k):
+        """Remove bond number k. If that cuts a molecule in two, one piece gets a new id."""
+        i, j = self.bonds[k]
+        self.bonds = np.delete(self.bonds, k, axis=0)
+        mine = self.mol == self.mol[j]
+        piece = self._reachable(j, mine)
+        if not piece[i]:
+            self.mol[piece] = self.n_mol
+            self.n_mol += 1
+        self._pairs = None
+
+    def _reachable(self, start, within):
+        """Beads connected to `start` by bonds, searching only beads in `within`."""
+        b = self.bonds[within[self.bonds[:, 0]] & within[self.bonds[:, 1]]]
+        seen = np.zeros(self.n, dtype=bool)
+        seen[start] = True
+        todo = [start]
+        while todo:
+            x = todo.pop()
+            for y in np.r_[b[b[:, 0] == x, 1], b[b[:, 1] == x, 0]]:
+                if not seen[y]:
+                    seen[y] = True
+                    todo.append(y)
+        return seen
+
     @property
     def n(self):
         return len(self.pos)
@@ -130,6 +172,16 @@ class World:
         p[p >= self.L] = 0.0
         return p
 
+    def _group(self):
+        """Beads in the same group skip non-bonded forces: same molecule, unless
+        their type is in repel_inside (then each bead is its own group)."""
+        if not len(self.repel_inside):
+            return self.mol
+        group = self.mol.copy()
+        alone = np.isin(self.type, self.repel_inside)
+        group[alone] = -1 - np.flatnonzero(alone)
+        return group
+
     def _neighbour_pairs(self):
         """Verlet list: rebuild only when something moved more than skin/2."""
         if self._pairs is not None:
@@ -138,10 +190,21 @@ class World:
             if np.max(np.einsum("ij,ij->i", moved, moved)) < (self.skin / 2) ** 2:
                 return self._pairs
         p = self._wrapped()
+        if self.fast and fast.HAVE_NUMBA and self.L >= 3 * (self.rules.charge_cutoff + self.skin):
+            everyone = np.arange(self.n)
+            self._pairs = fast.cell_pairs(p, self.L, self.rules.cutoff + self.skin,
+                                          self._group(), self.frozen, everyone)
+            charged = np.flatnonzero(self.rules.charge[self.type] != 0)
+            no_rock = np.zeros(self.n, dtype=bool)   # charged list never skipped rock pairs
+            self._charged_pairs = fast.cell_pairs(p, self.L, self.rules.charge_cutoff + self.skin,
+                                                  self._group(), no_rock, charged)
+            self._pos_at_build = self.pos.copy()
+            return self._pairs
         tree = cKDTree(p, boxsize=self.L)
         pairs = tree.query_pairs(self.rules.cutoff + self.skin, output_type="ndarray")
         # beads in the same molecule interact only through bonds
-        pairs = pairs[self.mol[pairs[:, 0]] != self.mol[pairs[:, 1]]]
+        group = self._group()
+        pairs = pairs[group[pairs[:, 0]] != group[pairs[:, 1]]]
         # frozen beads (rock) never move, so rock-rock forces do nothing
         pairs = pairs[~(self.frozen[pairs[:, 0]] & self.frozen[pairs[:, 1]])]
         self._pairs = pairs
@@ -152,13 +215,32 @@ class World:
         if len(charged) > 1:
             ctree = cKDTree(p[charged], boxsize=self.L)
             cp = charged[ctree.query_pairs(self.rules.charge_cutoff + self.skin, output_type="ndarray")]
-            cp = cp[self.mol[cp[:, 0]] != self.mol[cp[:, 1]]]
+            cp = cp[group[cp[:, 0]] != group[cp[:, 1]]]
         self._charged_pairs = cp
         self._pos_at_build = self.pos.copy()
         return pairs
 
     # ---- forces ---------------------------------------------------------
     def forces(self):
+        if not (self.fast and fast.HAVE_NUMBA):
+            return self.forces_numpy()
+        r = self.rules
+        F = np.zeros_like(self.pos)
+        pos = np.ascontiguousarray(self.pos)
+        pairs = self._neighbour_pairs()
+        energy = fast.pair_forces(pos, self.L, pairs, self.type, r.sigma, r.rc, r.eps, r.wc, F)
+        cp = self._charged_pairs
+        if cp is not None and len(cp):
+            energy += fast.charge_forces(pos, self.L, cp, self.type, r.charge, r.coulomb, r.debye,
+                                         r.charge_cutoff, F)
+        for idx, k, r0 in ((self.bonds, r.bond_k, r.bond_r0),
+                           (self.bends, r.bend_k, r.bend_r0)):
+            if len(idx):
+                energy += fast.spring_forces(pos, self.L, idx, k, r0, F)
+        return F, energy
+
+    def forces_numpy(self):
+        """Reference version of forces(), plain numpy (slower, easy to read)."""
         r = self.rules
         F = np.zeros_like(self.pos)
         energy = 0.0
@@ -228,17 +310,25 @@ class World:
         Friction is drag against the water. If the water flows (self.flow),
         beads are dragged toward the local water velocity instead of rest.
         If self.kT_field is set, each bead feels its local temperature.
+        Both fields vary over tens of units while a bead moves ~0.03 per step,
+        so they are re-read every `field_every` steps, not every step.
         """
         c1 = np.exp(-self.gamma * self.dt)
         c2 = np.sqrt((1 - c1 ** 2) * self.kT)
-        for _ in range(n):
-            if self.kT_field is not None:
-                c2 = np.sqrt((1 - c1 ** 2) * np.maximum(self.kT_field(self.pos), 0.0))[:, None]
+        u = 0.0
+        for s in range(n):
+            if s % self.field_every == 0:
+                if self.kT_field is not None:
+                    c2 = np.sqrt((1 - c1 ** 2) * np.maximum(self.kT_field(self.pos), 0.0))[:, None]
+                u = 0.0 if self.flow is None else self.flow(self.pos)
             F, self.energy = self.forces()
+            if self.external is not None:
+                f_ext, e_ext = self.external(self.pos)
+                F += f_ext
+                self.energy += e_ext
             if max_force is not None:
                 np.clip(F, -max_force, max_force, out=F)
             self.vel += F * self.dt
-            u = 0.0 if self.flow is None else self.flow(self.pos)
             self.vel = u + c1 * (self.vel - u) + c2 * self.rng.standard_normal(self.vel.shape)
             self.vel[self.frozen] = 0.0
             self.pos += self.vel * self.dt

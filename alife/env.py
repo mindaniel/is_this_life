@@ -190,3 +190,71 @@ class Terrain:
 
     def sun(self, pos):
         return self._blend(self.sun_grid, np.mod(pos, self.L))
+
+
+class Pond:
+    """A round pond that dries up and refills: wet-dry cycles.
+
+    Water covers a disk of radius R(t) in the middle of the box. Outside is
+    dry land. Sun evaporates the pond (R shrinks to r_dry), rain refills it
+    (R grows back to r_wet), once per `period` steps. The run starts wet.
+
+    Beads beyond the shore feel a spring pushing them back into the water:
+    the retreating edge sweeps lipids together, so they get crowded while
+    the pond is small and spread out again after rain. (Real drying strands
+    lipids as films on the mud; this is the simplest honest version.)
+    period = 0 keeps the pond always wet, for comparison.
+
+    rain > 0: refilling stirs the water. Rain drops and inflowing water make
+    swirls whose speed follows how fast the pond is refilling (top speed
+    `rain` at the fastest refill, nothing while it dries or stays full).
+    """
+
+    def __init__(self, L, r_wet, r_dry, period, k=5.0, rain=0.0, eddies=3, seed=0):
+        self.L, self.r_wet, self.r_dry, self.period, self.k = float(L), r_wet, r_dry, period, k
+        self.rain, self.eddies = rain, eddies
+        self.rng = np.random.default_rng(seed)
+
+    def radius(self, t):
+        if not self.period:
+            return self.r_wet
+        wet = 0.5 + 0.5 * np.cos(2 * np.pi * t / self.period)   # 1 = full, 0 = driest
+        return self.r_dry + (self.r_wet - self.r_dry) * wet
+
+    def refill_speed(self, t):
+        """0..1: 0 while drying or full, 1 at the fastest refill."""
+        if not self.period:
+            return 0.0
+        return max(0.0, -np.sin(2 * np.pi * t / self.period))   # R = cos: refills in the 2nd half
+
+    def flow_at(self, t):
+        """Rain-stirred water: random swirls (new pattern each call), or None."""
+        speed = self.rain * self.refill_speed(t)
+        if speed <= 0:
+            return None
+        k = 2 * np.pi * self.eddies / self.L
+        px, py = self.rng.uniform(0, 2 * np.pi, 2)
+
+        def flow(pos):
+            sx, cx = np.sin(k * pos[:, 0] + px), np.cos(k * pos[:, 0] + px)
+            sy, cy = np.sin(k * pos[:, 1] + py), np.cos(k * pos[:, 1] + py)
+            return speed * np.stack([sx * cy, -cx * sy], axis=1)
+
+        return flow
+
+    def shore_at(self, t, frozen=None):
+        """External force for World: pos -> (force, energy). Rock is left alone."""
+        R, k, L = self.radius(t), self.k, self.L
+
+        def shore(pos):
+            d = pos - L / 2
+            d -= L * np.round(d / L)
+            r = np.sqrt(np.einsum("ij,ij->i", d, d))
+            out = np.maximum(r - R, 0.0)   # how far onto dry land
+            if frozen is not None:
+                out[frozen] = 0.0
+            F = (-k * out / np.maximum(r, 1e-9))[:, None] * d
+            return F, float(np.sum(0.5 * k * out ** 2))
+
+        return shore
+
