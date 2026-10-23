@@ -19,6 +19,12 @@ and a meteorite every ~--meteor-every steps drops --meteor-sugar ready-made
 C5 sugars (0 = none). --leak lets small molecules cross membranes
 (alife/chem/membrane.py): formaldehyde fast, ions very slowly, C5+ never.
 
+--ponds N puts N ponds on a grid of land (--pond-spacing apart), each with
+--lipids lipids and its own drying timing. Ponds that are both nearly full
+overlap and share water (--r-wet above half the spacing makes this happen).
+--crust: molecules left on the dry rim stick there (dry crust) until the
+water comes back over them (alife/env.py Crust).
+
 Logged every --log-every steps: pond radius, clusters, every water pocket
 with its lining score (heads facing in) and coverage, so real vesicles can
 be counted and timed afterwards.
@@ -44,10 +50,19 @@ from alife.chem.analysis import lining, summary, water_pockets
 from alife.chem.elements import INDEX
 from alife.chem.membrane import Leak
 from alife.chem.reactions import CARB, Formose, chain_lengths
-from alife.env import Pond
+from alife.env import Crust, Pond
 
 FIELDS = ["step", "R", "clusters", "largest", "free_lipids", "vesicles", "real", "energy_per_lipid",
-          "c1", "c2_4", "c5plus", "meteors", "pockets"]
+          "c1", "c2_4", "c5plus", "meteors", "radii", "links", "crust", "travellers", "pockets"]
+
+
+def pond_centers(args):
+    """Pond centres on a square grid of land, one pond per --pond-spacing cell."""
+    if args.ponds == 1:
+        return np.array([[args.box / 2, args.box / 2]])
+    side = int(np.ceil(np.sqrt(args.ponds)))
+    cells = (np.stack(np.meshgrid(np.arange(side), np.arange(side)), -1).reshape(-1, 2) + 0.5) * args.pond_spacing
+    return cells[:args.ponds]
 
 
 def build(args):
@@ -63,23 +78,40 @@ def build(args):
     n = int(L / spacing)
     centers = (np.stack(np.meshgrid(np.arange(n), np.arange(n)), -1).reshape(-1, 2) + 0.5) * spacing
     centers += (L - n * spacing) / 2
-    centers = centers[np.hypot(*(centers - L / 2).T) < args.r_wet - length]
-    if len(centers) < args.lipids:
-        raise ValueError(f"pond of radius {args.r_wet} fits only {len(centers)} lipids")
+    ponds = pond_centers(args)
+    d = centers[:, None] - ponds[None]
+    d -= L * np.round(d / L)
+    dist = np.hypot(d[..., 0], d[..., 1])
+    home = np.argmin(dist, axis=1)
+    keep = dist.min(axis=1) < args.r_wet - length
     rng = world.rng
-    for c in rng.permutation(centers)[:args.lipids]:
-        angle = rng.uniform(0, 2 * np.pi)
-        start = c - 0.5 * length * np.array([np.cos(angle), np.sin(angle)])
-        add_lipid(world, *start, angle, n_tails=args.tails)
-    add_sugar(world, args.sugar, args.r_wet - 2)
+    for k in range(len(ponds)):
+        mine = centers[keep & (home == k)]
+        if len(mine) < args.lipids:
+            raise ValueError(f"pond of radius {args.r_wet} fits only {len(mine)} lipids")
+        for c in rng.permutation(mine)[:args.lipids]:
+            angle = rng.uniform(0, 2 * np.pi)
+            start = c - 0.5 * length * np.array([np.cos(angle), np.sin(angle)])
+            add_lipid(world, *start, angle, n_tails=args.tails)
+    for c in ponds:
+        add_sugar(world, args.sugar, args.r_wet - 2, c)
     if args.chem:
         for name, count in (("Ca", args.ca), ("Cl", 2 * args.ca)):
-            for p in free_spots(world, count, L / 2, args.r_wet - 2):
-                world.add_molecule([p], [name])
+            for c in ponds:
+                for p in free_spots(world, count, c, args.r_wet - 2):
+                    world.add_molecule([p], [name])
     world.step(200, max_force=50.0)
     world.t = 0
+    timing = np.random.default_rng(args.seed + 2000)   # own rng: one pond runs exactly as before
+    many = len(ponds) > 1
     pond = Pond(L, args.r_wet, args.r_dry, 0 if args.pond == "wet" else args.period,
-                rain=args.rain if args.pond == "rain" else 0.0, seed=args.seed + 1000)
+                rain=args.rain if args.pond == "rain" else 0.0, seed=args.seed + 1000, centers=ponds,
+                # start nearly full (lipids were placed in full ponds); different speeds pull them out of step
+                phases=timing.uniform(-0.1, 0.1, len(ponds)) if many else None,
+                periods=args.period * timing.uniform(0.9, 1.1, len(ponds)) if many else None)
+    # where each lipid started, to count lipids that travel to another pond
+    pond.home_beads = np.flatnonzero(np.isin(world.type, [INDEX["head"], INDEX["fa_head"]]))
+    pond.home = pond.where(world._wrapped()[pond.home_beads], 0)[0]
     return world, pond
 
 
@@ -108,7 +140,7 @@ class Chemistry:
         self.leak = Leak(every=50) if args.leak else None
         self.rain_carb, self.period = args.rain_carb, args.period
         self.meteor_every, self.meteor_sugar = args.meteor_every, args.meteor_sugar
-        self.rained = 0.0
+        self.rained = None
         self.meteors = 0
 
     def __call__(self, world, pond, k):
@@ -117,19 +149,24 @@ class Chemistry:
         if self.leak is not None:
             self.leak.leak(world)
         L = world.L
-        R = pond.radius(world.t)
+        radii = pond.radii(world.t)
+        if self.rained is None:
+            self.rained = np.zeros(len(radii))
         if self.period and self.rain_carb:
-            # formaldehyde arrives with the refill, at the pace the pond refills
+            # formaldehyde arrives with the refill, at the pace each pond refills
             # (refill_speed integrates to period/pi over one cycle)
-            self.rained += self.rain_carb * pond.refill_speed(world.t) * k * np.pi / self.period
-            n = int(self.rained)
-            self.rained -= n
-            for p in free_spots(world, n, L / 2, R - 1):
-                world.add_molecule([p], ["carb"])
+            self.rained += self.rain_carb * pond.refill_speeds(world.t) * k * np.pi / self.period
+            for c, R, i in zip(pond.centers, radii, range(len(radii))):
+                n = int(self.rained[i])
+                self.rained[i] -= n
+                for p in free_spots(world, n, c, R - 1):
+                    world.add_molecule([p], ["carb"])
         if self.meteor_sugar and world.rng.uniform() < k / self.meteor_every:
             # a small rock lands in the pond: a burst of ready-made C5 sugars near one spot
+            j = world.rng.integers(len(radii)) if len(radii) > 1 else 0   # which pond it lands in
+            R = radii[j]
             r, a = max(R - 10, 0) * np.sqrt(world.rng.uniform()), world.rng.uniform(0, 2 * np.pi)
-            hit = L / 2 + r * np.array([np.cos(a), np.sin(a)])
+            hit = pond.centers[j] + r * np.array([np.cos(a), np.sin(a)])
             added = 0
             for p in free_spots(world, self.meteor_sugar * 20, hit, 10.0):   # crowded pond: try many spots
                 ang = world.rng.uniform(0, 2 * np.pi)
@@ -143,7 +180,7 @@ class Chemistry:
             self.meteors += 1
 
 
-def add_sugar(world, count, radius, min_gap=1.0, tries=500):
+def add_sugar(world, count, radius, center=None, min_gap=1.0, tries=500):
     """Dissolve sugar beads at free spots inside the pond."""
     from scipy.spatial import cKDTree
     L = world.L
@@ -151,7 +188,7 @@ def add_sugar(world, count, radius, min_gap=1.0, tries=500):
         tree = cKDTree(world._wrapped(), boxsize=L)
         for _ in range(tries):
             r, a = radius * np.sqrt(world.rng.uniform()), world.rng.uniform(0, 2 * np.pi)
-            p = (L / 2 + r * np.array([np.cos(a), np.sin(a)])) % L
+            p = ((L / 2 if center is None else center) + r * np.array([np.cos(a), np.sin(a)])) % L
             if tree.query(p)[0] >= min_gap:
                 break
         else:
@@ -159,26 +196,37 @@ def add_sugar(world, count, radius, min_gap=1.0, tries=500):
         world.add_molecule([p], ["sugar"])
 
 
-def advance(world, pond, n, chunk=50, chem=None):
+def advance(world, pond, n, chunk=50, chem=None, crust=None):
     """Step n, moving the shore (and new rain swirls) every chunk steps."""
     done = 0
     while done < n:
         k = min(chunk, n - done)
         if chem is not None:
             chem(world, pond, k)   # before the shore: new beads need the shore too
+        if crust is not None:
+            crust.update(world, pond)
         world.external = pond.shore_at(world.t, world.frozen)
         world.flow = pond.flow_at(world.t)
         world.step(k)
         done += k
 
 
-def info(world, pond, min_lining, min_cover, chem=None):
+def info(world, pond, min_lining, min_cover, chem=None, crust=None):
     s = summary(world)
     counts = chain_lengths(world)
     carbons = counts * np.arange(len(counts))
     s["c1"], s["c2_4"], s["c5plus"] = int(carbons[1:2].sum()), int(carbons[2:5].sum()), int(carbons[5:].sum())
     s["meteors"] = chem.meteors if chem else 0
     s["R"] = round(pond.radius(world.t), 2)
+    radii = pond.radii(world.t)
+    s["radii"] = " ".join(f"{r:.1f}" for r in radii)
+    d = pond.centers[:, None] - pond.centers[None]
+    d -= world.L * np.round(d / world.L)
+    touch = np.hypot(d[..., 0], d[..., 1]) < radii[:, None] + radii[None]
+    s["links"] = int(np.triu(touch, 1).sum())   # pairs of ponds whose water joins now
+    s["crust"] = crust.count(world) if crust else 0
+    now = pond.where(world._wrapped()[pond.home_beads], world.t)[0]
+    s["travellers"] = int((now != pond.home).sum())   # lipids now in another pond than where they began
     areas, where, masks = water_pockets(world, centers=True, masks=True)
     m_ = masks[0].shape[0] if masks else 1
     sugar = world._wrapped()[world.type == INDEX["sugar"]].astype(int) % m_
@@ -209,14 +257,35 @@ def save_frame(world, path):
 def draw(view, world, pond, s):
     import matplotlib.patches as mpatches
     if getattr(view, "shore", None) is None:
-        view.shore = mpatches.Circle((world.L / 2, world.L / 2), pond.r_wet, fill=False,
-                                     ec="#5F5E5A", lw=1.5, ls="--", zorder=2)
-        view.ax.add_patch(view.shore)
-    view.shore.set_radius(s["R"])
+        view.shore = [mpatches.Circle(c, pond.r_wet, fill=False, ec="#5F5E5A", lw=1.5, ls="--", zorder=2)
+                      for c in pond.centers]
+        for c in view.shore:
+            view.ax.add_patch(c)
+    for c, r in zip(view.shore, pond.radii(world.t)):
+        c.set_radius(r)
+    if getattr(view, "caption", None) is None:
+        view.caption = view.ax.text(0.01, 0.99, "", transform=view.ax.transAxes, fontsize=9, va="top", zorder=5)
+        view.last_meteors, view.flash = 0, 0
+    trend = s["R"] - getattr(view, "last_R", s["R"])
+    view.last_R = s["R"]
+    if len(pond.centers) == 1:
+        text = f"pond radius {s['R']:.0f}" + (" drying" if trend < 0 else " refilling" if trend > 0 else "")
+    else:
+        text = f"{len(pond.centers)} ponds, joined pairs {s['links']}, lipids moved pond {s['travellers']}"
+    if s.get("crust"):
+        text += f"\ncrust (faded): {s['crust']} molecules"
+    if s.get("c1") or s.get("c2_4") or s.get("c5plus"):
+        text += f"\nsugar carbons: C1 {s['c1']}  C2-4 {s['c2_4']}  C5+ {s['c5plus']}"
+    if s.get("meteors", 0) > view.last_meteors:
+        view.last_meteors, view.flash = s["meteors"], 15   # show the hit for 15 frames
+    if view.flash:
+        text += "\nMETEORITE! sugar delivered"
+        view.flash -= 1
+    view.caption.set_text(text)
     return view.update(s)
 
 
-def run_headless(world, pond, args, chem=None):
+def run_headless(world, pond, args, chem=None, crust=None):
     import matplotlib
     matplotlib.use("Agg")
     from alife.viz import View
@@ -224,16 +293,24 @@ def run_headless(world, pond, args, chem=None):
     out = os.path.join(args.out, f"{args.name or args.pond}_seed{args.seed}")
     os.makedirs(out, exist_ok=True)
     view = View(world, title=args.pond)
+    movie = None
+    if args.video:
+        from alife.viz import Movie
+        view.legend()
+        movie = Movie(view, args.video, fps=args.fps)
     log = open(os.path.join(out, "log.csv"), "w", newline="")
     writer = csv.DictWriter(log, FIELDS, extrasaction="ignore")
     writer.writeheader()
     start = time.time()
     snap_every = args.steps // args.snapshots
     while world.t < args.steps:
-        advance(world, pond, args.log_every, chem=chem)
-        s = info(world, pond, args.min_lining, args.min_cover, chem)
+        advance(world, pond, args.log_every, chem=chem, crust=crust)
+        s = info(world, pond, args.min_lining, args.min_cover, chem, crust)
         writer.writerow(s)
         log.flush()
+        if movie:
+            draw(view, world, pond, s)
+            movie.grab()
         if s["vesicles"]:
             save_frame(world, os.path.join(out, f"frame_{world.t:06d}.npz"))
         if world.t % snap_every == 0:
@@ -241,11 +318,15 @@ def run_headless(world, pond, args, chem=None):
             view.save(os.path.join(out, f"step_{world.t:06d}.png"), s)
             print(f"step {world.t} R {s['R']} clusters {s['clusters']} largest {s['largest']} "
                   f"pockets {s['vesicles']} real {s['real']}  carbons C1 {s['c1']} C2-4 {s['c2_4']} "
-                  f"C5+ {s['c5plus']} meteors {s['meteors']}  ({time.time() - start:.0f}s)", flush=True)
+                  f"C5+ {s['c5plus']} meteors {s['meteors']}  links {s['links']} crust {s['crust']} "
+                  f"travellers {s['travellers']}  ({time.time() - start:.0f}s)", flush=True)
     log.close()
+    if movie:
+        movie.close()
+        print(f"video: {args.video} ({movie.frames} frames, {movie.frames / args.fps:.0f} s)")
 
 
-def run_live(world, pond, args, chem=None):
+def run_live(world, pond, args, chem=None, crust=None):
     import matplotlib.pyplot as plt
     from matplotlib.animation import FuncAnimation
     from alife.viz import View
@@ -253,8 +334,8 @@ def run_live(world, pond, args, chem=None):
     view = View(world, title=args.pond)
 
     def frame(_):
-        advance(world, pond, args.steps_per_frame, chem=chem)
-        return draw(view, world, pond, info(world, pond, args.min_lining, args.min_cover, chem))
+        advance(world, pond, args.steps_per_frame, chem=chem, crust=crust)
+        return draw(view, world, pond, info(world, pond, args.min_lining, args.min_cover, chem, crust))
 
     _anim = FuncAnimation(view.fig, frame, interval=1, blit=False, cache_frame_data=False)
     plt.show()
@@ -351,6 +432,11 @@ def main():
     p.add_argument("--meteor-every", type=int, default=50000, help="mean steps between meteorites")
     p.add_argument("--meteor-sugar", type=int, default=0, help="C5 sugars per meteorite (0 = none)")
     p.add_argument("--leak", action="store_true", help="small molecules leak through membranes (--chem only)")
+    p.add_argument("--ponds", type=int, default=1, help="number of ponds (on a square grid of land)")
+    p.add_argument("--pond-spacing", type=float, default=96.0, help="distance between pond centres")
+    p.add_argument("--crust", action="store_true", help="molecules stranded on dry land stick until rewetted")
+    p.add_argument("--crust-stick", type=float, default=0.02, help="crust: chance per check to stick when dry")
+    p.add_argument("--crust-dissolve", type=float, default=0.1, help="crust: chance per check to dissolve when wet")
     p.add_argument("--name", default=None, help="run folder name (default: --pond)")
     p.add_argument("--kT", type=float, default=0.6)
     p.add_argument("--stick", type=float, default=1.0)
@@ -363,6 +449,8 @@ def main():
     p.add_argument("--snapshots", type=int, default=40)
     p.add_argument("--steps-per-frame", type=int, default=50)
     p.add_argument("--headless", action="store_true")
+    p.add_argument("--video", default=None, help="save a movie (.mp4 or .gif), one frame per --log-every steps; implies --headless")
+    p.add_argument("--fps", type=int, default=10, help="video frames per second (10: one dry-refill cycle = 10 s)")
     p.add_argument("--plot", action="store_true")
     p.add_argument("--out", default="runs/e05_wetdry")
     args = p.parse_args()
@@ -370,15 +458,18 @@ def main():
     if args.plot:
         plot(args)
         return
+    if args.ponds > 1:
+        args.box = np.ceil(np.sqrt(args.ponds)) * args.pond_spacing
     world, pond = build(args)
     chem = Chemistry(args) if args.chem else None
+    crust = Crust(args.crust_stick, args.crust_dissolve) if args.crust else None
     print(f"{args.pond}: {args.lipids} lipids, {args.sugar} sugar, pond r {args.r_wet}"
           + (f" -> {args.r_dry} every {args.period} steps" if args.pond != "wet" else "")
           + (f", rain {args.rain}" if args.pond == "rain" else ""))
-    if args.headless:
-        run_headless(world, pond, args, chem)
+    if args.headless or args.video:
+        run_headless(world, pond, args, chem, crust)
     else:
-        run_live(world, pond, args, chem)
+        run_live(world, pond, args, chem, crust)
 
 
 if __name__ == "__main__":

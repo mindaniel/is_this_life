@@ -44,8 +44,8 @@ class Formose:
         return np.exp(-Ea * (1.0 / kT - 1.0 / self.kT0))
 
     def react(self, world):
-        """One round of joins and splits."""
-        carb = np.flatnonzero(world.type == CARB)
+        """One round of joins and splits. Frozen carbons (dry crust) don't react."""
+        carb = np.flatnonzero((world.type == CARB) & ~world.frozen)
         if len(carb) < 2:
             return
         size = np.bincount(world.mol[carb], minlength=world.n_mol)   # chain length per molecule
@@ -88,7 +88,7 @@ class Formose:
 
     def _split(self, world):
         b = world.bonds
-        cb = np.flatnonzero((world.type[b[:, 0]] == CARB) & (world.type[b[:, 1]] == CARB))
+        cb = np.flatnonzero((world.type[b[:, 0]] == CARB) & (world.type[b[:, 1]] == CARB) & ~world.frozen[b[:, 0]])
         if not len(cb):
             return
         size = np.bincount(world.mol, minlength=world.n_mol)

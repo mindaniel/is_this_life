@@ -47,16 +47,25 @@ energy rules + copying with errors + selection.
   (sealed water inside one lipid cluster, area >= 20).
 - `alife/env.py`: Environment (seasons, day/night light, drifting currents,
   asteroid shocks global or local, calm ending), Terrain (zone map of
-  warmth and sun), Pond (shore that shrinks/refills, rain swirls).
-- `alife/viz.py`: matplotlib view; temperature map; red circles on vesicles.
+  warmth and sun), Pond (one or many ponds with own timing; shore that
+  shrinks/refills; rain swirls; full neighbours overlap), Crust (molecules
+  on dry land freeze until rewetted; reactions and leaks skip frozen beads).
+- `alife/viz.py`: matplotlib view; temperature map; red circles on vesicles;
+  sugar carbons coloured by chain length; `legend()`; `Movie` (mp4 via
+  ffmpeg, or .gif). e05 `--video out.mp4` films a run (the user likes
+  watching runs: offer a video for new experiments).
 - `experiments/e01..e04`: membrane, environment cycles, ions, big world.
   Each has live mode and `--headless`; e02/e03 have `--plot`.
   e04 logs vesicle x,y,area (`pockets` column) and saves `frame_*.npz`
   whenever one is detected; `e04_check.py` tracks lifetimes and draws a
   zoomed gallery of them.
 - `experiments/e05_wetdry.py`: wet-dry pond. `--sugar`, `--chem` (formose
-  with rain formaldehyde, Ca2+, meteorites), `--leak`, `--name`. Pocket log
+  with rain formaldehyde, Ca2+, meteorites), `--leak`, `--name`, `--ponds N`
+  (`--r-wet` > spacing/2 so they connect), `--crust`, `--video`. One pond
+  with default flags reproduces old runs bit for bit (checked on e08 seed 7). Pocket log
   per vesicle: x,y,area,lining,cover,trapped big sugar,small sugar C,ions.
+- `experiments/e07_reactor.py`: one ring vesicle, seeds + Ca2+ inside, food
+  outside; `--sealed`, `--ca none|outside` controls; `--video`.
 - `experiments/e06_formose.py`: formose alone in a small box (checks lag,
   autocatalysis, Ca needed, heat).
 
@@ -111,7 +120,7 @@ energy rules + copying with errors + selection.
 
 1. (done) e04 vesicles confirmed: real but tiny and short-lived.
 2. (done) Wet-dry cycles, sugar, formose, leaky membranes.
-2b. Test the "vesicle as reactor" guess: does formaldehyde leak into
+2b. (done 2026-10-23: yes, 6 -> 27.6 sugar C vs ~6-10 in controls) Test the "vesicle as reactor" guess: does formaldehyde leak into
    sugar-filled compartments and get built into trapped sugar? Then:
    swelling -> taking up lipids -> growth -> splitting (stage 2).
 3. Pigment chemistry: a light-absorbing bead that gets excited by `env.light`

@@ -47,6 +47,7 @@ class Leak:
             rate[m] = self.sugar_rate.get(int(size[m]), 0.0)
         ion = np.isin(world.type, self.ion_types) & ~world.frozen
         rate[world.mol[ion]] = self.ion_rate
+        rate[world.mol[world.frozen]] = 0.0   # rock and dry crust stay put
         return rate
 
     def leak(self, world):

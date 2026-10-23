@@ -172,7 +172,24 @@ it refills.
 ```bash
 python experiments/e05_wetdry.py --pond wetdry --headless   # runs/e05_wetdry/wetdry_seed0
 python experiments/e05_wetdry.py --plot                     # compare runs
+python experiments/e05_wetdry.py --chem --leak --meteor-sugar 10 --meteor-every 40000     --seed 7 --video runs/video/rain_meteor_seed7.mp4         # watch a run (one frame per 200 steps)
 ```
+
+Many ponds and shore crust: `--ponds 4 --r-wet 50` puts 4 ponds on a 2x2
+grid of land, each drying on its own timing (start near full, speeds differ
+by up to 10%). Full neighbours overlap and share water, so molecules can
+move between ponds. `--crust`: molecules stranded on dry land stick there
+(frozen, no reactions, no leaking) and dissolve back when the water returns.
+
+```bash
+python experiments/e05_wetdry.py --ponds 4 --r-wet 50 --crust --chem --leak --meteor-sugar 10     --meteor-every 40000 --video runs/video/ponds.mp4
+```
+
+`--video` saves an mp4 (needs ffmpeg; `.gif` works without it). Colours:
+orange = lipid tails, red = heads, pale / mid / dark purple = formaldehyde /
+small sugar / big sugar, grey = Ca2+, green = Cl-, red circles = vesicles,
+faded = dried into the shore crust. Default 10 frames/s: one dry-refill
+cycle = 10 s.
 
 ### Findings (200k steps, 8 seeds, vesicle = lining >= 0.7 and cover >= 0.7)
 
@@ -288,3 +305,33 @@ Leaky membranes:
   sugar, and the sugar can't leave.
 - Ions leak very slowly, so trapped salt still holds vesicles open too.
 - Leak rates are hand-set; only their order is meant to be real.
+
+## Vesicle as a reactor
+
+`experiments/e07_reactor.py`: one ring vesicle with 3 C2 sugar seeds and
+4 Ca2+ inside, 150 formaldehyde (food) outside, leaky membrane. Food leaks
+in, gets joined onto the seeds, and the bigger sugar can't leak out.
+
+```bash
+python experiments/e07_reactor.py --seed 0            # reactor
+python experiments/e07_reactor.py --sealed --seed 0   # control: nothing crosses
+python experiments/e07_reactor.py --ca none           # control: no catalyst
+python experiments/e07_reactor.py --ca outside        # control: catalyst outside the bag
+```
+
+### Findings (100k steps, 8 seeds; sugar carbons inside, start 6)
+
+| condition | sugar C inside at end |
+|---|---|
+| reactor (leaky, Ca2+ inside) | 27.6 (every seed grew: 18-39) |
+| sealed | 6.5 |
+| no catalyst | 9.0 |
+| catalyst outside | 10.5 |
+
+- Nothing "wants" food. Hops in and out are equally likely; joining food
+  onto trapped sugar removes it from the free food inside, so more random
+  hops go in than out (like cells trapping glucose as glucose-6-phosphate).
+- Needs both the leaky wall and the catalyst inside.
+- Mostly C2-C4 inside (C2 leaks slowly, so some escapes: ~6 C outside).
+- Here the outside has no catalyst. In the pond, Ca2+ is everywhere, so
+  the vesicle advantage there is smaller.
