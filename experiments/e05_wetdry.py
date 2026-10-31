@@ -24,6 +24,11 @@ C5 sugars (0 = none). --leak lets small molecules cross membranes
 overlap and share water (--r-wet above half the spacing makes this happen).
 --crust: molecules left on the dry rim stick there (dry crust) until the
 water comes back over them (alife/env.py Crust).
+--weather adds four seasons (one --year), a wind from one (slowly
+wandering) direction that drives a current through each pond (--wind), and
+random storms that whirl the ponds round near their middle (--storm-every,
+--storm-wind) (alife/env.py Weather). Summer dries ponds deepest, winter
+barely; summer is a little warmer, winter a little cooler.
 
 Logged every --log-every steps: pond radius, clusters, every water pocket
 with its lining score (heads facing in) and coverage, so real vesicles can
@@ -49,11 +54,15 @@ from alife.chem import TAIL, Rules, World, add_lipid
 from alife.chem.analysis import lining, summary, water_pockets
 from alife.chem.elements import INDEX
 from alife.chem.membrane import Leak
-from alife.chem.reactions import CARB, Formose, chain_lengths
-from alife.env import Crust, Pond
+from alife.chem.nitrogen import HCN, NH3, Nitrogen, census
+from alife.chem.reactions import CARB, Formose, chain_lengths, pure_carb
+from alife.env import Crust, Pond, Weather
 
 FIELDS = ["step", "R", "clusters", "largest", "free_lipids", "vesicles", "real", "energy_per_lipid",
-          "c1", "c2_4", "c5plus", "meteors", "radii", "links", "crust", "travellers", "pockets"]
+          "c1", "c2_4", "c5plus", "meteors", "radii", "links", "crust", "travellers",
+          "season", "wind", "hcn", "nh3", "glycine", "cyano", "hcn_chains", "dark_hcn", "longest_hcn",
+          "hydrolysed", "pockets"]
+DARK = 5   # HCN chains this long or longer count as dark polymer (as in e14)
 
 
 def pond_centers(args):
@@ -71,7 +80,7 @@ def build(args):
     rules.bend_r0 = 2 * rules.bond_r0
     rules.eps[TAIL, TAIL] = args.stick
     world = World(box=args.box, rules=rules, kT=args.kT, seed=args.seed)
-    world.repel_inside = (CARB,)   # floppy sugar chains must not fold through themselves
+    world.repel_inside = (CARB, HCN, NH3) if args.nitrogen else (CARB,)   # floppy chains must not fold through themselves
     # lipids on grid cells inside the full pond, random direction (grid = no overlaps)
     L, length = args.box, args.tails * rules.bond_r0
     spacing = length + 1.2
@@ -108,7 +117,11 @@ def build(args):
                 rain=args.rain if args.pond == "rain" else 0.0, seed=args.seed + 1000, centers=ponds,
                 # start nearly full (lipids were placed in full ponds); different speeds pull them out of step
                 phases=timing.uniform(-0.1, 0.1, len(ponds)) if many else None,
-                periods=args.period * timing.uniform(0.9, 1.1, len(ponds)) if many else None)
+                periods=args.period * timing.uniform(0.9, 1.1, len(ponds)) if many else None,
+                weather=Weather(args.year, args.wind, args.storm_every, args.storm_length, args.storm_wind,
+                                seed=args.seed + 3000) if args.weather else None)
+    if pond.weather is not None:
+        pond.weather.base_kT = args.kT
     # where each lipid started, to count lipids that travel to another pond
     pond.home_beads = np.flatnonzero(np.isin(world.type, [INDEX["head"], INDEX["fa_head"]]))
     pond.home = pond.where(world._wrapped()[pond.home_beads], 0)[0]
@@ -133,20 +146,38 @@ def free_spots(world, count, center, radius, min_gap=1.0, tries=500):
 
 
 class Chemistry:
-    """Formose in the pond: rain brings formaldehyde, meteorites bring sugar."""
+    """Formose in the pond: rain brings formaldehyde, meteorites bring sugar.
+    With --nitrogen, rain also brings HCN and ammonia (lightning) and the
+    nitrogen reactions run too (alife/chem/nitrogen.py)."""
 
     def __init__(self, args):
         self.formose = Formose(every=50)
+        self.nitrogen = Nitrogen(every=50) if args.nitrogen else None
+        self.rain_n = [("hcn", args.rain_hcn), ("nh3", args.rain_nh3)] if args.nitrogen else []
+        self.steady = args.nitrogen   # always-wet pond: same rain per cycle, spread evenly (fair control)
         self.leak = Leak(every=50) if args.leak else None
         self.rain_carb, self.period = args.rain_carb, args.period
         self.meteor_every, self.meteor_sugar = args.meteor_every, args.meteor_sugar
         self.rained = None
         self.meteors = 0
 
+    def spots(self, world, n, pond, i, center, R):
+        """Where rain drops formaldehyde into pond i (round pond: anywhere inside R - 1)."""
+        return free_spots(world, n, center, R - 1)
+
+    def supply(self, pond, t, k):
+        """Fraction of one cycle's rain that falls in the next k steps, per pond."""
+        if not pond.period and self.steady:
+            return np.full(len(pond.centers), k / self.period)
+        return pond.refill_speeds(t) * k * np.pi / self.period
+
     def __call__(self, world, pond, k):
         """Every chunk of k steps: react, then add rain and maybe a meteorite."""
         self.formose.react(world)
+        if self.nitrogen is not None:
+            self.nitrogen.react(world)
         if self.leak is not None:
+            self.leak.wet = lambda pos: pond.where(pos, world.t)[1] == 0
             self.leak.leak(world)
         L = world.L
         radii = pond.radii(world.t)
@@ -155,12 +186,25 @@ class Chemistry:
         if self.period and self.rain_carb:
             # formaldehyde arrives with the refill, at the pace each pond refills
             # (refill_speed integrates to period/pi over one cycle)
-            self.rained += self.rain_carb * pond.refill_speeds(world.t) * k * np.pi / self.period
+            if self.steady:
+                self.rained += self.rain_carb * self.supply(pond, world.t, k)
+            else:   # old expression kept as is: same rounding, old runs repeat bit for bit
+                self.rained += self.rain_carb * pond.refill_speeds(world.t) * k * np.pi / self.period
             for c, R, i in zip(pond.centers, radii, range(len(radii))):
                 n = int(self.rained[i])
                 self.rained[i] -= n
-                for p in free_spots(world, n, c, R - 1):
+                for p in self.spots(world, n, pond, i, c, R):
                     world.add_molecule([p], ["carb"])
+        if self.period and self.rain_n:
+            if not hasattr(self, "rained_n"):
+                self.rained_n = np.zeros((len(self.rain_n), len(radii)))
+            for s, (name, amount) in enumerate(self.rain_n):
+                self.rained_n[s] += amount * self.supply(pond, world.t, k)
+                for c, R, i in zip(pond.centers, radii, range(len(radii))):
+                    n = int(self.rained_n[s, i])
+                    self.rained_n[s, i] -= n
+                    for p in self.spots(world, n, pond, i, c, R):
+                        world.add_molecule([p], [name])
         if self.meteor_sugar and world.rng.uniform() < k / self.meteor_every:
             # a small rock lands in the pond: a burst of ready-made C5 sugars near one spot
             j = world.rng.integers(len(radii)) if len(radii) > 1 else 0   # which pond it lands in
@@ -196,8 +240,11 @@ def add_sugar(world, count, radius, center=None, min_gap=1.0, tries=500):
         world.add_molecule([p], ["sugar"])
 
 
-def advance(world, pond, n, chunk=50, chem=None, crust=None):
-    """Step n, moving the shore (and new rain swirls) every chunk steps."""
+def advance(world, pond, n, chunk=50, chem=None, crust=None, max_force=None):
+    """Step n, moving the shore (and new rain swirls) every chunk steps.
+
+    max_force: cap on each force component (None = no cap), a safety net
+    against one hard shove sending a bead into another."""
     done = 0
     while done < n:
         k = min(chunk, n - done)
@@ -205,9 +252,28 @@ def advance(world, pond, n, chunk=50, chem=None, crust=None):
             chem(world, pond, k)   # before the shore: new beads need the shore too
         if crust is not None:
             crust.update(world, pond)
+        if pond.weather is not None:
+            pond.weather.update(world.t)
+            world.kT = pond.weather.base_kT + pond.weather.kT_shift(world.t)
         world.external = pond.shore_at(world.t, world.frozen)
+        if pond.weather is not None:   # water pressure keeps floating beads riding the current
+            shore, carry = world.external, pond.weather.carry_at(world.t, pond)
+            drift = None
+            if pond.weather.surface:   # wind drags floating lipids downwind
+                tails = np.unique(world.mol[world.type == TAIL])
+                floating = np.isin(world.mol, tails) & ~world.frozen
+                drift = pond.weather.drift_at(world.t, pond, floating)
+
+            def push(pos, shore=shore, carry=carry, drift=drift):
+                F, E = shore(pos)
+                F = F + carry(pos)[0]
+                if drift is not None:
+                    F = F + drift(pos)[0]
+                return F, E
+
+            world.external = push
         world.flow = pond.flow_at(world.t)
-        world.step(k)
+        world.step(k, max_force=max_force)
         done += k
 
 
@@ -217,6 +283,12 @@ def info(world, pond, min_lining, min_cover, chem=None, crust=None):
     carbons = counts * np.arange(len(counts))
     s["c1"], s["c2_4"], s["c5plus"] = int(carbons[1:2].sum()), int(carbons[2:5].sum()), int(carbons[5:].sum())
     s["meteors"] = chem.meteors if chem else 0
+    if chem is not None and chem.nitrogen is not None:
+        c = census(world)
+        h = c.pop("hcn_chains")
+        s.update(hcn=c["hcn"], nh3=c["nh3"], glycine=c["glycine"], cyano=c["cyano"], hcn_chains=int(h[2:].sum()),
+                 dark_hcn=int((h * np.arange(len(h)))[DARK:].sum()), longest_hcn=int(np.flatnonzero(h)[-1]) if h.any() else 0,
+                 hydrolysed=chem.nitrogen.hydrolysed)
     s["R"] = round(pond.radius(world.t), 2)
     radii = pond.radii(world.t)
     s["radii"] = " ".join(f"{r:.1f}" for r in radii)
@@ -225,13 +297,18 @@ def info(world, pond, min_lining, min_cover, chem=None, crust=None):
     touch = np.hypot(d[..., 0], d[..., 1]) < radii[:, None] + radii[None]
     s["links"] = int(np.triu(touch, 1).sum())   # pairs of ponds whose water joins now
     s["crust"] = crust.count(world) if crust else 0
+    if pond.weather is not None:
+        s["season"] = pond.weather.season(world.t)["name"] + (" STORM" if pond.weather.storm_at(world.t) > 0.5 else "")
+        s["wind"] = round(pond.weather.wind_at(world.t), 2)
+        s["heading"] = round(float(np.degrees(pond.weather.heading(world.t)) % 360), 0)
+        s["whirl"] = round(pond.weather.whirl_at(world.t), 2)
     now = pond.where(world._wrapped()[pond.home_beads], world.t)[0]
     s["travellers"] = int((now != pond.home).sum())   # lipids now in another pond than where they began
     areas, where, masks = water_pockets(world, centers=True, masks=True)
     m_ = masks[0].shape[0] if masks else 1
     sugar = world._wrapped()[world.type == INDEX["sugar"]].astype(int) % m_
     # carbons in big sugars (chains of 5+, too big to leak out: they make the pressure) and small ones
-    carb = np.flatnonzero(world.type == CARB)
+    carb = np.flatnonzero((world.type == CARB) & pure_carb(world))
     size = np.bincount(world.mol[carb], minlength=world.n_mol)[world.mol[carb]]
     big = world._wrapped()[carb[size >= 5]].astype(int) % m_
     small = world._wrapped()[carb[size < 5]].astype(int) % m_
@@ -254,6 +331,17 @@ def save_frame(world, path):
                         bonds=world.bonds, L=world.L, t=world.t)
 
 
+COMPASS = ("E", "NE", "N", "NW", "W", "SW", "S", "SE")
+
+
+def e05_weather_text(s):
+    """Caption: season, wind speed and where it blows to, storm whirl."""
+    text = f"{s['season']}  wind {s['wind']:.1f} towards {COMPASS[int((s['heading'] + 22.5) // 45) % 8]}"
+    if abs(s.get("whirl", 0)) > 0.05:
+        text += f"  whirl {abs(s['whirl']):.1f} {'anticlockwise' if s['whirl'] > 0 else 'clockwise'}"
+    return text
+
+
 def draw(view, world, pond, s):
     import matplotlib.patches as mpatches
     if getattr(view, "shore", None) is None:
@@ -272,10 +360,15 @@ def draw(view, world, pond, s):
         text = f"pond radius {s['R']:.0f}" + (" drying" if trend < 0 else " refilling" if trend > 0 else "")
     else:
         text = f"{len(pond.centers)} ponds, joined pairs {s['links']}, lipids moved pond {s['travellers']}"
+    if s.get("season"):
+        text = e05_weather_text(s) + "\n" + text
     if s.get("crust"):
         text += f"\ncrust (faded): {s['crust']} molecules"
     if s.get("c1") or s.get("c2_4") or s.get("c5plus"):
         text += f"\nsugar carbons: C1 {s['c1']}  C2-4 {s['c2_4']}  C5+ {s['c5plus']}"
+    if "hcn" in s:
+        text += (f"\nHCN {s['hcn']}  glycine {s['glycine']}  dark polymer {s['dark_hcn']} HCN "
+                 f"(longest chain {s['longest_hcn']})")
     if s.get("meteors", 0) > view.last_meteors:
         view.last_meteors, view.flash = s["meteors"], 15   # show the hit for 15 frames
     if view.flash:
@@ -296,7 +389,7 @@ def run_headless(world, pond, args, chem=None, crust=None):
     movie = None
     if args.video:
         from alife.viz import Movie
-        view.legend()
+        view.legend(("hcn", "nh3") if args.nitrogen else ())
         movie = Movie(view, args.video, fps=args.fps)
     log = open(os.path.join(out, "log.csv"), "w", newline="")
     writer = csv.DictWriter(log, FIELDS, extrasaction="ignore")
@@ -319,7 +412,10 @@ def run_headless(world, pond, args, chem=None, crust=None):
             print(f"step {world.t} R {s['R']} clusters {s['clusters']} largest {s['largest']} "
                   f"pockets {s['vesicles']} real {s['real']}  carbons C1 {s['c1']} C2-4 {s['c2_4']} "
                   f"C5+ {s['c5plus']} meteors {s['meteors']}  links {s['links']} crust {s['crust']} "
-                  f"travellers {s['travellers']}  ({time.time() - start:.0f}s)", flush=True)
+                  f"travellers {s['travellers']}"
+                  + (f"  HCN {s['hcn']} NH3 {s['nh3']} glycine {s['glycine']} cyano {s['cyano']} "
+                     f"dark {s['dark_hcn']} longest {s['longest_hcn']} lost {s['hydrolysed']}" if "hcn" in s else "")
+                  + f"  ({time.time() - start:.0f}s)", flush=True)
     log.close()
     if movie:
         movie.close()
@@ -431,12 +527,21 @@ def main():
     p.add_argument("--ca", type=int, default=20, help="Ca2+ catalyst ions (with 2 Cl- each), --chem only")
     p.add_argument("--meteor-every", type=int, default=50000, help="mean steps between meteorites")
     p.add_argument("--meteor-sugar", type=int, default=0, help="C5 sugars per meteorite (0 = none)")
+    p.add_argument("--nitrogen", action="store_true", help="rain also brings HCN + ammonia; nitrogen reactions run")
+    p.add_argument("--rain-hcn", type=int, default=40, help="HCN brought by each refill (--nitrogen)")
+    p.add_argument("--rain-nh3", type=int, default=10, help="ammonia brought by each refill (--nitrogen)")
     p.add_argument("--leak", action="store_true", help="small molecules leak through membranes (--chem only)")
     p.add_argument("--ponds", type=int, default=1, help="number of ponds (on a square grid of land)")
     p.add_argument("--pond-spacing", type=float, default=96.0, help="distance between pond centres")
     p.add_argument("--crust", action="store_true", help="molecules stranded on dry land stick until rewetted")
     p.add_argument("--crust-stick", type=float, default=0.02, help="crust: chance per check to stick when dry")
     p.add_argument("--crust-dissolve", type=float, default=0.1, help="crust: chance per check to dissolve when wet")
+    p.add_argument("--weather", action="store_true", help="four seasons, steady wind, storms")
+    p.add_argument("--year", type=int, default=80000, help="weather: steps per year (4 seasons)")
+    p.add_argument("--wind", type=float, default=1.5, help="weather: wind current speed (season x this)")
+    p.add_argument("--storm-every", type=int, default=40000, help="weather: mean steps between storms")
+    p.add_argument("--storm-length", type=int, default=4000, help="weather: steps a storm lasts")
+    p.add_argument("--storm-wind", type=float, default=4.0, help="weather: storm adds this x --wind")
     p.add_argument("--name", default=None, help="run folder name (default: --pond)")
     p.add_argument("--kT", type=float, default=0.6)
     p.add_argument("--stick", type=float, default=1.0)
@@ -461,7 +566,7 @@ def main():
     if args.ponds > 1:
         args.box = np.ceil(np.sqrt(args.ponds)) * args.pond_spacing
     world, pond = build(args)
-    chem = Chemistry(args) if args.chem else None
+    chem = Chemistry(args) if args.chem or args.nitrogen else None
     crust = Crust(args.crust_stick, args.crust_dissolve) if args.crust else None
     print(f"{args.pond}: {args.lipids} lipids, {args.sugar} sugar, pond r {args.r_wet}"
           + (f" -> {args.r_dry} every {args.period} steps" if args.pond != "wet" else "")

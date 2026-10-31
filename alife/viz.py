@@ -5,12 +5,25 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgb, to_rgba
 
 from .chem.elements import COLOR, INDEX, NAMES
-from .chem.world import TAIL
+from .chem.world import TAILS
 
 WATER = "#E6F1FB"
 BOND_COLOR = "#888780"
 # sugar carbons coloured by chain length, so formaldehyde -> sugar is visible
 CARB_COLORS = ((1, "#C9B3E6", "formaldehyde C1"), (2, "#8E5BB5", "small sugar C2-4"), (5, "#4B1C7A", "big sugar C5+"))
+# nitrogen products (alife/chem/nitrogen.py)
+N_COLORS = (("hcn_chain", "#3B2314", "HCN polymer (dark)"), ("glycine", "#1F9E4A", "glycine"),
+            ("cyano", "#AAAAAA", "glycolonitrile"))
+
+
+def nitrogen_roles(w):
+    """Beads in HCN chains, glycine, glycolonitrile (bool masks)."""
+    t, size = w.type, np.bincount(w.mol, minlength=w.n_mol)[w.mol]
+    per = lambda k: np.bincount(w.mol[t == k], minlength=w.n_mol)[w.mol]
+    n_c, n_h, n_n = per(INDEX["carb"]), per(INDEX["hcn"]), per(INDEX["nh3"])
+    return {"hcn_chain": (n_h == size) & (size > 1),
+            "glycine": (size == 3) & (n_c == 1) & (n_h == 1) & (n_n == 1),
+            "cyano": (size == 2) & (n_c == 1) & (n_h == 1)}
 
 
 def _bond_segments(world):
@@ -54,7 +67,11 @@ class View:
             chain = np.bincount(w.mol[carb], minlength=w.n_mol)[w.mol[carb]]
             for least, color, _ in CARB_COLORS:
                 colors[carb[chain >= least]] = color
-        sizes = np.where(w.type == TAIL, 22, 40)
+        if (w.type == INDEX["hcn"]).any():
+            roles = nitrogen_roles(w)
+            for key, color, _ in N_COLORS:
+                colors[roles[key]] = color
+        sizes = np.where(np.isin(w.type, TAILS), 22, 40)
         sizes = np.where(w.rules.charge[w.type] != 0, 30 + 15 * np.abs(w.rules.charge[w.type]), sizes)
         sizes = sizes * (64 / w.L) ** 2 * (self.size / 7) ** 2   # same look in bigger boxes
         rgba = np.array([to_rgba(c) for c in colors]).reshape(-1, 4)
@@ -63,13 +80,15 @@ class View:
         self.beads.set_facecolors(rgba)
         self.beads.set_sizes(sizes)
 
-    def legend(self):
-        """Colour key for the bead types in this world, below the picture."""
+    def legend(self, coming=()):
+        """Colour key for the bead types in this world (and `coming` ones rain will bring), below the picture."""
         from matplotlib.lines import Line2D
-        present = set(NAMES[t] for t in np.unique(self.world.type))
-        items = [(COLOR[INDEX[n]], n) for n in ("head", "tail", "fa_head", "Na", "K", "Cl", "Mg", "Ca", "sugar")
-                 if n in present]
+        present = set(NAMES[t] for t in np.unique(self.world.type)) | set(coming)
+        items = [(COLOR[INDEX[n]], n) for n in ("head", "tail", "stail", "fa_head", "Na", "K", "Cl", "Mg", "Ca", "sugar",
+                                                "hcn", "nh3") if n in present]
         items += [(c, label) for _, c, label in CARB_COLORS]
+        if "hcn" in present:
+            items += [(c, label) for _, c, label in N_COLORS]
         handles = [Line2D([], [], marker="o", ls="", color=c, markersize=7, label=label) for c, label in items]
         handles.append(Line2D([], [], marker="o", ls="", mfc="none", mec="#E24B4A", markersize=11, label="vesicle"))
         self.ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=5,
@@ -91,7 +110,7 @@ class View:
     def update(self, info=None):
         self.bonds.set_segments(_bond_segments(self.world))
         self.beads.set_offsets(self.world._wrapped())
-        if self.world.n != len(self.beads.get_sizes()) or (self.world.type == INDEX["carb"]).any() or self.world.frozen.any():
+        if self.world.n != len(self.beads.get_sizes()) or np.isin(self.world.type, [INDEX["carb"], INDEX["hcn"]]).any()                 or self.world.frozen.any():
             self._style()
         xy = (info or {}).get("vesicle_xy") or []
         self.rings.set_offsets(np.array(xy).reshape(-1, 2))

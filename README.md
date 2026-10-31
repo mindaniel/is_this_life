@@ -335,3 +335,165 @@ python experiments/e07_reactor.py --ca outside        # control: catalyst outsid
 - Mostly C2-C4 inside (C2 leaks slowly, so some escapes: ~6 C outside).
 - Here the outside has no catalyst. In the pond, Ca2+ is everywhere, so
   the vesicle advantage there is smaller.
+
+## Do full vesicles steal lipid? (e08) Can a ring grow? (e10)
+
+Lab result (Chen, Roberts & Szostak 2004): fatty-acid vesicles swollen by
+trapped solute take lipid from empty neighbours. `experiments/e08_compete.py`:
+two rings (R 12), sugar in A and/or B, optional lipid drip.
+
+```bash
+python experiments/e08_compete.py --sugar-a 30 --sugar-b 0 --drip 500 --mix 0.5 --hop-oily 1.8 --seed 0
+```
+
+### Findings (200k steps)
+
+- 3-tail walls (8 seeds x 3 setups): no stealing. Sugar rings swell (area
+  ~700 vs ~550) but gain no more lipid; gains 0-11, same as noise.
+- Half 2-tail "fatty-acid" walls (`--mix 0.5 --hop-oily 1.8`, 5 seeds x 5 setups):
+  still no stealing. Without drip every ring keeps exactly 191 lipids: at
+  oiliness 1.8 short-tail lipids never leave a wall in 2D, so nothing is
+  traded. With drip (one every 500 steps) both rings gain the same
+  (at 100k: sugar ring 203.6, empty ring 203.2; ~+20-40 by 200k). Sugar rings
+  are bigger (area at 50k ~590-750 vs ~480-650) but don't last longer;
+  rings open at random times (24k to never).
+- Why no stealing here: in the lab a stretched membrane has lower tension
+  energy per added lipid; our 2D rings are floppy and barely stretched, and
+  lipids hardly ever leave a wall to be shared.
+
+`experiments/e10_grow.py`: one mixed ring fed by drip, with shear.
+The fed ring grows (191 -> ~210-240 lipids at oiliness 1.4-2.0, 256-294 with
+`--near 6` drip next to it) but never splits; rings open after ~50-200k
+steps (o1.6-1.8 last longest). In 2D a long "tube" is two parallel lines
+with nothing pulling them into a neck, so splitting needs 3D (e15).
+
+## Nitrogen: HCN and ammonia (first step towards pigments)
+
+`alife/chem/nitrogen.py`, `experiments/e14_nitrogen.py`: HCN, ammonia and
+formaldehyde alone in a small box (like e06). Rules: Strecker (formaldehyde
++ HCN + NH3 -> glycine), glycolonitrile side product (no NH3), HCN chains
+(faster with NH3 nearby as a base, slow first dimer), hydrolysis (lone HCN
+-> formic acid + NH3). Long HCN chains = dark HCN polymer, a crude pigment.
+
+```bash
+python experiments/e14_nitrogen.py --name base --seed 0
+python experiments/e14_nitrogen.py --name dilute --box 80 --seed 0
+python experiments/e14_nitrogen.py --plot
+```
+
+### Findings (100k steps, 3 seeds; start 300 HCN, 100 NH3, 100 formaldehyde)
+
+| condition | dark polymer (HCN in chains 5+) | glycine | glycolonitrile | HCN lost to water |
+|---|---|---|---|---|
+| base | 114 | 53 | 47 | 48 |
+| no NH3 | 32 | 11 | 89 | 69 |
+| HCN only | 90 | 0 | 0 | 81 |
+| HCN + NH3 | 202 | 0 | 0 | 57 |
+| dilute (4x water) | 0 | 19 | 66 | 70 |
+| hot (kT 0.7) | 103 | 52 | 48 | 87 |
+
+- Dilute HCN makes no polymer at all: it is lost to water first (one molecule
+  is enough to hydrolyse, two must meet to join). Real chemists say HCN had
+  to be concentrated (drying ponds, freezing): same result.
+- Ammonia picks glycine over glycolonitrile, and speeds the polymer.
+- HCN alone starts slowly (lag ~30-40k), then polymerises: hydrolysis
+  releases ammonia, which catalyses the polymer. Nobody coded that loop.
+- Formaldehyde competes for HCN (polymer 114 with it vs 202 without).
+- Hot: faster, but more HCN lost to water.
+- Rates are hand-set; only their order is meant to be real.
+
+### Nitrogen in the wet-dry pond (e05 `--nitrogen --leak`, 400k steps, 3 seeds)
+
+Rain brings 40 HCN + 10 NH3 per refill (~800 HCN in total), plus
+formaldehyde (`--rain-carb`). The always-wet pond gets the same rain spread
+evenly over time.
+
+```bash
+python experiments/e05_wetdry.py --headless --pond wetdry --nitrogen --leak --rain-carb 5 --steps 400000 --seed 0
+```
+
+| at the end (per seed) | 40 formaldehyde, wet | 40, wet-dry | 5 formaldehyde, wet | 5, wet-dry |
+|---|---|---|---|---|
+| HCN in dark polymer (chains 5+) | 5-7 | 12-47 | ~204 | 406-466 |
+| longest HCN chain | 5-7 | 6-19 | 22-24 | 79-83 |
+| glycine | 161-178 | 152-177 | 34-46 | 51-53 |
+| glycolonitrile | 423-456 | 344-359 | 49-57 | 24-29 |
+| HCN lost to water | 112-125 | 49-71 | ~285 | ~105 |
+
+- Formaldehyde and pigment compete for the same HCN: lots of formaldehyde
+  gives amino acid (glycine) and a dead end (glycolonitrile), little gives polymer.
+- Drying concentrates HCN, so it joins before water breaks it: wet-dry gives
+  ~2x the polymer, 3-4x longer chains and half the loss to water.
+- Low formaldehyde + wet-dry: about half of all rained HCN ends as polymer.
+- 5-formaldehyde wet-dry seed 2 blew up at step 189k (two beads on one spot);
+  up to then it matched the other seeds (dark 175 vs 184/165), so its
+  numbers are from 189k. Cause: a membrane hop (`Leak`) put an NH3 bead
+  7 units onto dry land; the shore spring dragged it back fast into a packed
+  clump and two lipid tails were pushed together. Fix: `Leak.wet` (hops must
+  land in water; e05 sets it to the pond). Same random numbers, so runs are
+  unchanged until the first hop that would have landed on land; older
+  `--leak` pond runs may differ slightly after that point. Rerun with the
+  fix (`--name nlow_fix_wetdry`) finished 200k: dark polymer 200, longest 54,
+  in line with the other seeds.
+
+## 3D wet-dry with a flood (e13)
+
+`experiments/e13_drywet3d.py`: lipid gas in 3D (15 mM, ~1420 lipids, box 60).
+The box shrinks (pond dries, lipids stack into sheets), then grows back.
+A flood = rewet to a bigger box than the start (more water).
+
+```bash
+python experiments/e13_drywet3d.py --mM 15 --cycles 1 --rewet-box 100 --last-wet 200000 --seed 0
+```
+
+### Findings (3 seeds per flood size, 200k steps after rewetting)
+
+| rewet box | runs with a vesicle | formed (steps after rewet) | sealed until end |
+|---|---|---|---|
+| 60 (no flood) | 0 / 3 | - | - |
+| 100 | 2 / 3 | 136k, 150k | yes (97-100% of logs) |
+| 140 | 3 / 3 | 139k, 166k, 178k | yes (95-100% of logs) |
+
+- First 3D vesicles that formed on their own. Drying makes one big lipid
+  stack (~1410 of 1420 lipids); after a flood it peels off and closes into a
+  single bilayer sphere (outer radius ~11, water core ~490), checked by eye
+  in three slices (heads on both faces, water inside).
+- Without a flood the sheet spans the whole box (periodic) and can't curl up.
+- Control (`--no-dry`, same lipids straight into box 100/140, 290k steps,
+  3 seeds each): 0 / 6 vesicles. Lipids stay as ~80-160 small clusters,
+  largest only 69-94 lipids, from 100k to the end. So the drying matters,
+  not just the dilution: only the dried stack is big enough to close.
+
+## 3D grow and split (e15)
+
+Lab result (Zhu & Szostak 2009): fatty-acid vesicles fed more fatty acid grow
+wall faster than volume (solutes inside hold the water), stretch into threads,
+and gentle shear breaks the threads into daughter vesicles.
+`experiments/e15_split3d.py`: one vesicle (R 10, 2225 lipids, half short-tail),
+sugar inside and out (0.03 per unit volume, 35 inside), one short-tail lipid
+added near it every 200 steps (1000 in 200k), optional shear bands.
+
+```bash
+python experiments/e15_split3d.py --short-oily 0.85 --feed 200 --shear 0.1 --seed 0 --video runs/video/e15.mp4
+```
+
+### Findings (200k steps, 3 seeds each, short-tail oiliness 1.0 and 0.85 alike)
+
+| setup | wall lipids (start -> end) | water inside (start -> end) | shape (1 = ball) | split? |
+|---|---|---|---|---|
+| no food | 2225 -> 2200-2225 | ~1650 -> 1420-1500 | 1.1-1.2 | no |
+| food | 2225 -> 3000-3075 | ~1650 -> 2570-2900 | 1.2-1.4 | no |
+| food + shear 0.1 | 2225 -> 2620-2790 | ~1650 -> 0 at 30k, 590-770 at end (open tube) | 3.2-3.4 (max 4.7) | no |
+
+- Food works: ~830 of 1000 added lipids join the wall (rest loose or small clumps).
+- Without shear the vesicle just gets bigger and stays round, keeping its 35 sugar.
+  Volume grows as fast as a ball's would (area x1.37 -> volume x1.6), so the
+  sugar does not hold the water back. In the lab it does; here 35 sugar beads
+  push far too weakly (implicit water: no real osmotic pressure).
+- With shear the vesicle is pulled into a long tube within ~20k steps, tears
+  (sugar escapes; no sealed water at 30k) and the tube joins itself across the
+  periodic box (box 50 = tube length). The "2 vesicles" logs (~19-27 per run)
+  are checked by eye: narrow spots along one tube, not separate daughters;
+  the wall stays one cluster.
+- Next tries: much stronger osmolyte (or explicit water) so feeding makes
+  excess wall; a box long in the shear direction so a tube can't wrap.

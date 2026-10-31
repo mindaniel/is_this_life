@@ -44,8 +44,9 @@ class Formose:
         return np.exp(-Ea * (1.0 / kT - 1.0 / self.kT0))
 
     def react(self, world):
-        """One round of joins and splits. Frozen carbons (dry crust) don't react."""
-        carb = np.flatnonzero((world.type == CARB) & ~world.frozen)
+        """One round of joins and splits. Frozen carbons (dry crust) don't react,
+        nor carbons bonded to other atoms (glycine, glycolonitrile: not sugar)."""
+        carb = np.flatnonzero((world.type == CARB) & ~world.frozen & pure_carb(world))
         if len(carb) < 2:
             return
         size = np.bincount(world.mol[carb], minlength=world.n_mol)   # chain length per molecule
@@ -88,7 +89,8 @@ class Formose:
 
     def _split(self, world):
         b = world.bonds
-        cb = np.flatnonzero((world.type[b[:, 0]] == CARB) & (world.type[b[:, 1]] == CARB) & ~world.frozen[b[:, 0]])
+        cb = np.flatnonzero((world.type[b[:, 0]] == CARB) & (world.type[b[:, 1]] == CARB) & ~world.frozen[b[:, 0]]
+                            & pure_carb(world)[b[:, 0]])
         if not len(cb):
             return
         size = np.bincount(world.mol, minlength=world.n_mol)
@@ -114,9 +116,15 @@ class Formose:
             self.splits += 1
 
 
+def pure_carb(world):
+    """True for beads in molecules made only of carb (sugars and formaldehyde)."""
+    other = np.bincount(world.mol[world.type != CARB], minlength=world.n_mol)
+    return other[world.mol] == 0
+
+
 def chain_lengths(world):
-    """Number of carb molecules of each length: counts[n] = chains with n carbons."""
-    carb = world.type == CARB
+    """Number of sugar molecules of each length: counts[n] = chains with n carbons."""
+    carb = (world.type == CARB) & pure_carb(world)
     if not carb.any():
         return np.zeros(1, dtype=int)
     size = np.bincount(world.mol[carb])

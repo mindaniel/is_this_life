@@ -1,4 +1,4 @@
-"""2D particle chemistry engine.
+"""Particle chemistry engine, 2D (default) or 3D (World(dim=3)).
 
 Coarse-grained, implicit-solvent model (Cooke-Kremer-Deserno style):
 water is not simulated as particles. Its effect is folded into the pair rules:
@@ -18,7 +18,8 @@ from . import fast
 
 from . import elements as el
 
-HEAD, TAIL = el.INDEX["head"], el.INDEX["tail"]
+HEAD, TAIL, STAIL = el.INDEX["head"], el.INDEX["tail"], el.INDEX["stail"]
+TAILS = (TAIL, STAIL)   # bead types that make a molecule a lipid
 TYPE_NAMES = el.NAMES
 N_TYPES = len(TYPE_NAMES)
 
@@ -44,6 +45,7 @@ class Rules:
         self.sigma = (size[:, None] + size[None, :]) / 2
         for (a, b), s in el.PAIR_SIZE.items():
             self.sigma[el.INDEX[a], el.INDEX[b]] = self.sigma[el.INDEX[b], el.INDEX[a]] = s
+        self.oily = oily
         self.eps = np.sqrt(oily[:, None] * oily[None, :])
         self.charge = np.array(el.CHARGE, dtype=float)
         assert self.sigma.shape == (n, n)
@@ -54,6 +56,13 @@ class Rules:
         self.bond_r0 = 1.0
         self.bend_k = 10.0    # spring between beads i and i+2: keeps lipids straight
         self.bend_r0 = 2.0
+
+    def set_oily(self, name, value):
+        """Change one bead type's oiliness (its attraction to oily beads: sqrt(oily_a * oily_b))."""
+        k = el.INDEX[name]
+        self.oily = self.oily.copy()
+        self.oily[k] = value
+        self.eps[k, :] = self.eps[:, k] = np.sqrt(self.oily[k] * self.oily)
 
     @property
     def rc(self):
@@ -70,15 +79,16 @@ class Rules:
 
 
 class World:
-    """Periodic 2D box of beads, bonds, and a Langevin thermostat."""
+    """Periodic 2D (or 3D) box of beads, bonds, and a Langevin thermostat."""
 
-    def __init__(self, box=40.0, rules=None, kT=1.0, gamma=1.0, dt=0.01, seed=0):
+    def __init__(self, box=40.0, rules=None, kT=1.0, gamma=1.0, dt=0.01, seed=0, dim=2):
+        self.dim = dim
         self.L = float(box)
         self.rules = rules or Rules()
         self.kT, self.gamma, self.dt = kT, gamma, dt
         self.rng = np.random.default_rng(seed)
-        self.pos = np.zeros((0, 2))
-        self.vel = np.zeros((0, 2))
+        self.pos = np.zeros((0, dim))
+        self.vel = np.zeros((0, dim))
         self.type = np.zeros(0, dtype=int)
         self.mol = np.zeros(0, dtype=int)
         self.bonds = np.zeros((0, 2), dtype=int)
@@ -161,6 +171,41 @@ class World:
     def n(self):
         return len(self.pos)
 
+    def rescale(self, f, group=None):
+        """Shrink (f < 1) or grow the box: water leaves or comes back (implicit water).
+
+        Each molecule's middle moves with the box; its shape stays, so bonds
+        never stretch. Drying = many small shrinks, rewetting = small grows.
+        group (one label per molecule, e.g. clusters) moves whole clumps
+        instead, so water flows around a membrane rather than pulling every
+        lipid apart.
+        """
+        first = np.zeros(self.n_mol, dtype=int)
+        first[self.mol[::-1]] = np.arange(self.n)[::-1]   # one bead per molecule as anchor
+        anchor = self.pos[first[self.mol]]
+        d = self.pos - anchor
+        d -= self.L * np.round(d / self.L)
+        count = np.bincount(self.mol, minlength=self.n_mol)[:, None]
+        mid = np.stack([np.bincount(self.mol, d[:, k], minlength=self.n_mol) for k in range(self.dim)], 1)
+        mid = self.pos[first] + mid / np.maximum(count, 1)
+        if group is not None:
+            ng = group.max() + 1
+            gfirst = np.zeros(ng, dtype=int)
+            gfirst[group[::-1]] = np.arange(self.n_mol)[::-1]
+            dm = mid - mid[gfirst[group]]
+            dm -= self.L * np.round(dm / self.L)
+            gc = np.bincount(group, minlength=ng)[:, None]
+            gmid = np.stack([np.bincount(group, dm[:, k], minlength=ng) for k in range(self.dim)], 1)
+            gmid = mid[gfirst] + gmid / np.maximum(gc, 1)
+            whole = mid[gfirst[group]] + dm   # molecule middles, one frame per clump
+            self.pos = (whole + gmid[group] * (f - 1))[self.mol] + (anchor + d - mid[self.mol])
+            self.L *= f
+            self._pairs = None
+            return
+        self.pos = mid[self.mol] * f + (anchor + d - mid[self.mol])
+        self.L *= f
+        self._pairs = None
+
     # ---- geometry -------------------------------------------------------
     def delta(self, i, j):
         """Shortest vector from bead i to bead j through periodic walls."""
@@ -192,12 +237,13 @@ class World:
         p = self._wrapped()
         if self.fast and fast.HAVE_NUMBA and self.L >= 3 * (self.rules.charge_cutoff + self.skin):
             everyone = np.arange(self.n)
-            self._pairs = fast.cell_pairs(p, self.L, self.rules.cutoff + self.skin,
-                                          self._group(), self.frozen, everyone)
+            pairs = fast.cell_pairs if self.dim == 2 else                 lambda *a: fast.cell_pairs3(*a, fast.HALF3)
+            self._pairs = pairs(p, self.L, self.rules.cutoff + self.skin,
+                                self._group(), self.frozen, everyone)
             charged = np.flatnonzero(self.rules.charge[self.type] != 0)
             no_rock = np.zeros(self.n, dtype=bool)   # charged list never skipped rock pairs
-            self._charged_pairs = fast.cell_pairs(p, self.L, self.rules.charge_cutoff + self.skin,
-                                                  self._group(), no_rock, charged)
+            self._charged_pairs = pairs(p, self.L, self.rules.charge_cutoff + self.skin,
+                                        self._group(), no_rock, charged)
             self._pos_at_build = self.pos.copy()
             return self._pairs
         tree = cKDTree(p, boxsize=self.L)
@@ -299,7 +345,7 @@ class World:
 
     def _scatter(self, F, i, j, f):
         """Add force f to bead j and -f to bead i (Newton's third law)."""
-        for ax in range(2):
+        for ax in range(self.dim):
             F[:, ax] += np.bincount(j, f[:, ax], minlength=self.n)
             F[:, ax] -= np.bincount(i, f[:, ax], minlength=self.n)
 

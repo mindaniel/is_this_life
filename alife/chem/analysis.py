@@ -4,12 +4,12 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 
-from .world import TAIL
+from .world import TAILS
 
 
 def cluster_labels(world, contact=1.5):
     """Cluster id per molecule: molecules whose tails touch share an id."""
-    tails = np.flatnonzero(world.type == TAIL)
+    tails = np.flatnonzero(np.isin(world.type, TAILS))
     tree = cKDTree(world._wrapped()[tails], boxsize=world.L)
     pairs = tree.query_pairs(contact, output_type="ndarray")
     m = world.mol[tails]
@@ -21,9 +21,9 @@ def cluster_labels(world, contact=1.5):
 
 def tail_clusters(world, contact=1.5):
     """Cluster sizes (in molecules with tails; ions don't count), largest first."""
-    if not np.any(world.type == TAIL):
+    if not np.any(np.isin(world.type, TAILS)):
         return np.array([], dtype=int)
-    lipids = np.unique(world.mol[world.type == TAIL])
+    lipids = np.unique(world.mol[np.isin(world.type, TAILS)])
     sizes = np.bincount(cluster_labels(world, contact)[lipids])
     return np.sort(sizes[sizes > 0])[::-1]
 
@@ -44,12 +44,12 @@ def water_pockets(world, cell=1.0, reach=1.0, min_area=20, one_cluster=0.8, cent
     m = int(np.ceil(world.L / cell))
     wall = np.zeros((m, m), dtype=bool)
     owner = np.full((m, m), -1)
-    if not np.any(world.type == TAIL):
+    if not np.any(np.isin(world.type, TAILS)):
         empty = np.array([], dtype=int)
         return (empty, [], []) if masks else (empty, []) if centers else empty
     # only lipids build walls: a loose ion floating in water seals nothing
     has_tail = np.zeros(world.n_mol, dtype=bool)
-    has_tail[world.mol[world.type == TAIL]] = True
+    has_tail[world.mol[np.isin(world.type, TAILS)]] = True
     lipid = has_tail[world.mol]
     idx = (world._wrapped()[lipid] / cell).astype(int) % m
     wall[idx[:, 0], idx[:, 1]] = True
@@ -121,7 +121,7 @@ def lining(world, mask, cell=1.0, near=2.5):
     dist, (ix, iy) = ndimage.distance_transform_edt(~big, return_indices=True)
     p = world._wrapped()
     has_tail = np.zeros(world.n_mol, dtype=bool)
-    has_tail[world.mol[world.type == TAIL]] = True
+    has_tail[world.mol[np.isin(world.type, TAILS)]] = True
     first = np.r_[0, np.flatnonzero(np.diff(world.mol)) + 1]   # first bead of each molecule
     last = np.r_[first[1:] - 1, world.n - 1]
     lip = np.flatnonzero(has_tail[world.mol[first]])
@@ -158,3 +158,63 @@ def summary(world):
         "vesicle_area": [int(a) for a in pockets],
         "energy_per_lipid": float(world.energy / max(int(np.sum(sizes)), 1)),
     }
+
+
+def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8):
+    """3D vesicle detector: water fully enclosed by one lipid cluster.
+
+    Same idea as water_pockets: voxels near a lipid bead are wall, the
+    biggest water region (through the periodic walls) is the open water, and
+    any other water region of at least `min_volume` voxels whose wall belongs
+    mostly to one cluster is a vesicle's inside. Returns (volumes, centres).
+    """
+    from scipy import ndimage
+
+    m = int(np.ceil(world.L / cell))
+    wall = np.zeros((m, m, m), dtype=bool)
+    owner = np.full((m, m, m), -1)
+    has_tail = np.zeros(world.n_mol, dtype=bool)
+    has_tail[world.mol[np.isin(world.type, TAILS)]] = True
+    lipid = has_tail[world.mol]
+    if not lipid.any():
+        return np.array([], dtype=int), []
+    idx = (world._wrapped()[lipid] / cell).astype(int) % m
+    wall[tuple(idx.T)] = True
+    owner[tuple(idx.T)] = cluster_labels(world)[world.mol[lipid]]
+    r = int(np.ceil(reach / cell))
+    ball = np.sqrt((np.mgrid[-r:r + 1, -r:r + 1, -r:r + 1] ** 2).sum(0)) <= reach / cell
+    wall = ndimage.binary_dilation(np.pad(wall, r, mode="wrap"), ball)[r:-r, r:-r, r:-r]
+    labels, n = ndimage.label(~wall)
+    parent = np.arange(n + 1)
+
+    def root(a):
+        while parent[a] != a:
+            a = parent[a]
+        return a
+
+    for ax in range(3):   # water touching across opposite faces is one region
+        a_face = np.take(labels, 0, axis=ax).ravel()
+        b_face = np.take(labels, -1, axis=ax).ravel()
+        for a, b in set(zip(a_face[(a_face > 0) & (b_face > 0)], b_face[(a_face > 0) & (b_face > 0)])):
+            parent[root(a)] = root(b)
+    roots = np.array([root(a) for a in range(n + 1)])
+    region = roots[labels]
+    vols = np.bincount(region.ravel(), minlength=n + 1)
+    vols[0] = 0
+    sea = np.argmax(vols)
+    out, where = [], []
+    ring = r + 1
+    for k in np.flatnonzero(vols >= min_volume):
+        if k == sea:
+            continue
+        mask = region == k
+        border = ndimage.binary_dilation(np.pad(mask, ring, mode="wrap"), iterations=ring)[
+            ring:-ring, ring:-ring, ring:-ring]
+        walls = owner[border & (owner >= 0)]
+        if len(walls) and np.bincount(walls).max() >= one_cluster * len(walls):
+            out.append(vols[k])
+            ang = 2 * np.pi * np.argwhere(mask) / m
+            mid = np.angle(np.mean(np.exp(1j * ang), axis=0)) % (2 * np.pi)
+            where.append(tuple((mid / (2 * np.pi) * m + 0.5) * cell))
+    order = np.argsort(out)[::-1]
+    return np.array(out, dtype=int)[order], [where[k] for k in order]
