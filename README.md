@@ -497,3 +497,84 @@ python experiments/e15_split3d.py --short-oily 0.85 --feed 200 --shear 0.1 --see
   the wall stays one cluster.
 - Next tries: much stronger osmolyte (or explicit water) so feeding makes
   excess wall; a box long in the shear direction so a tube can't wrap.
+
+### Second try: more sugar, food anywhere, bigger box (`runs/e15b/`)
+
+Nothing pulls or cuts the vesicle: shapes come from bead forces and thermal
+noise only. Sugar can't cross the wall and (implicit) water can, so the push on
+the wall is van't Hoff osmotic pressure (c kT). Food appears anywhere in the
+box (`--near 0 --clear 1.0`) and reaches the vesicle by diffusion. Short-tail
+oiliness 0.85, 200k steps, 3 seeds each.
+
+```bash
+python experiments/e15_split3d.py --box 50 --osm 0.3 --feed 200 --near 0 --clear 1.0 --short-oily 0.85 --seed 0
+python experiments/e15_split3d.py --box 80 --osm 0.15 --feed 200 --near 0 --clear 1.0 --shear 0.1 --short-oily 0.85 --seed 0
+```
+
+| setup | wall lipids at end | water inside (1k -> end) | shape (1 = ball) | sealed | split |
+|---|---|---|---|---|---|
+| box 50, sugar 0.15, no food | 2215-2217 | ~1490 -> 960-1120 | 1.35-1.56 | always | no |
+| box 50, sugar 0.15, food | 2700-2730 | ~1490 -> 950-1140 | 1.76-1.96 | always | no |
+| box 50, sugar 0.3, no food | 2222 | ~1230 -> 850-870 | 1.59-1.63 | always | no |
+| box 50, sugar 0.3, food | 2575-2605 | ~1220 -> 680-770 | 1.81-1.88 | always | no |
+| box 80, sugar 0.15, shear, no food | ~2210 | ~1500 -> 0 (torn at 61-75k) | 7-7.9 | no | no |
+| box 80, sugar 0.15, shear, food | 2415-2435 | ~1500 -> 0-50 (torn at 55-89k; one seed keeps tiny pockets) | 6.4-7.8 | no | no |
+
+- The first step of the lab result shows up without being forced: fed
+  vesicles gain wall (+400-500 lipids) while their water stays the same or
+  shrinks (the trapped sugar holds it), so they have spare wall and go
+  long (shape ~1.9 vs ~1.5 unfed). They stay sealed with their sugar.
+- Unfed vesicles also stretch a little: the start put sugar only in the middle
+  of the inside, so the inside began less sugary than the pond and lost water.
+- No thread and no split in 200k steps. One fed run (sugar 0.3, seed 0) showed
+  a second small pocket at 182k/186k: by eye it is a fold of the same wall,
+  not a daughter.
+- About 1/3 of the food never reaches the vesicle: it clumps into its own
+  small lipid blobs (7-10 clusters of 30+), as real fatty acid forms micelles.
+- Shear (bigger box, so no wrap-around) pulls the vesicle into a tube ~60 long
+  that tears and goes flat (a ribbon, no water inside); the "2 pockets" logs
+  are small water spots at its ends, one piece of wall. Shear 0.1 is too strong
+  for gentle pinching.
+- Shortcuts still in: ready-made start vesicle, lipids added one by one
+  (real fatty acid arrives as micelles), implicit water, 2-tail Cooke lipids
+  for fatty acids.
+
+### Third try: more food, gentler current (`runs/e15c/`)
+
+Same rules as the second try, but 5 (or 10) lipids per 200 steps instead of 1:
+~5000 lipids arrive over the run, about twice the vesicle's own wall (closer to
+the lab's flooding). Box 80 runs use a gentle current (0.02, 0.05) instead of
+0.1. 3 seeds each, 200k steps.
+
+```bash
+python experiments/e15_split3d.py --box 50 --osm 0.3 --feed 200 --batch 5 --near 0 --clear 1.0 --short-oily 0.85 --seed 0
+python experiments/e15_split3d.py --box 80 --osm 0.15 --feed 200 --batch 5 --near 0 --clear 1.0 --shear 0.05 --short-oily 0.85 --seed 0
+```
+
+| setup | biggest lipid cluster at end | sealed pockets at end (volumes) | shape | what it is (by eye + head/tail layering) |
+|---|---|---|---|---|
+| box 50, sugar 0.15, x5 | 3630-4140 | 2-3 (467+99, 301+169+63, 260+155+101) | 1.3-1.8 | one lumpy body, rooms split by thick lipid masses |
+| box 50, sugar 0.3, x5 | 3390-3810 | 2-3 (398+82, 306+166, 258+74+41) | 1.3-2.0 | same |
+| box 50, sugar 0.3, x10 | 4780-8240 | 2-4, small (34-129) | 1.3-2.3 | big tangled blob, small sugar rooms |
+| box 80, sugar 0.15, current 0.02 | 2790-2840 | 1 (490-563) | 3.8-4.1 | long sealed vesicle; one seed split 160-190k then merged back |
+| box 80, sugar 0.15, current 0.05 | 2870-2990 | 2 (224+185, 194+161, 181+95) | 4.3-4.7 | **two sacs side by side, from one** |
+
+- **Gentle current 0.05: the vesicle divides, in all 3 seeds.** It stretches
+  (shape 3.4 -> 4), its middle narrows, the two halves flicker between one and
+  two pockets (~72-88k) and then stay two for the last ~110k steps. Water is
+  shared, not lost (e.g. 373 -> 181 + 165). Every sac holds sugar from the
+  start vesicle and none from the pond. Right at the split all 173 start sugar
+  beads are still with the two sacs; by 200k ~8% have got out.
+- They are not yet free: the two sacs still touch. Between them the layering
+  reads head-tails-head, (water), head-tails-head in one seed (two vesicles
+  stuck together) and two bilayers pressed with no water in the others. The
+  lipid count says one cluster because touching tails count as joined. The
+  last step (drifting apart) didn't happen in 200k.
+- Without a current, food piles up as lipid masses that wall the inside into
+  rooms (thick tail layers 10-15 across, not clean bilayers): one body with
+  2-4 sugar rooms, not a division. 10 per 200 steps makes a tangled blob of
+  ~5000-8000 lipids.
+- Current 0.02 stretches it (shape ~4) without tearing (unlike 0.1) but splits
+  only briefly in 1/3 seeds.
+- Flagged shortcuts: same as above (ready-made vesicle, monomer food,
+  implicit water, Cooke lipids, sin-profile current, start inside hypotonic).

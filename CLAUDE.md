@@ -200,7 +200,20 @@ energy rules + copying with errors + selection.
   (2225 -> ~3050) but the vesicle stays a ball (volume follows; 35 sugar beads
   too weak to hold water back). Shear stretches it into a tube that tears and
   wraps across the periodic box; "2 pocket" logs are narrow spots in one tube,
-  checked by eye. No split. Next: stronger osmolyte, box long along shear.
+  checked by eye. No split.
+  e15b (`runs/e15b/`, sugar 0.15/0.3, food anywhere `--near 0 --clear 1.0`,
+  box 80 for shear): fed vesicles gain wall while water stays/shrinks, go
+  long (shape ~1.9 vs ~1.5 unfed), stay sealed; no thread, no split. Shear 0.1
+  tears the tube flat. ~1/3 of food makes its own blobs. Look script:
+  slices along each pocket's long axis (scratchpad `e15_look.py`).
+
+- (2026-11-01) e15c (`runs/e15c/`, food x5/x10 per 200 steps, current 0.02/0.05 in
+  box 80): current 0.05 divides the vesicle in 3/3 seeds (pinch at ~72-88k, two
+  sealed sacs to the end, each with start sugar, ~8% leaked by 200k). The sacs still
+  touch (two bilayers, one cluster): not yet drifted apart. No current: food piles
+  into thick lipid masses that make 2-4 rooms in one body (not a split). Check
+  pockets by wall cluster + head/tail layering along the line between them, not by
+  pocket count (touching vesicles = one cluster).
 
 ## Next steps (user's choice; ask before starting a big one)
 

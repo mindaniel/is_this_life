@@ -193,6 +193,7 @@ def main():
     p.add_argument("--feed", type=int, default=200, help="add lipids every N steps (0 = never)")
     p.add_argument("--batch", type=int, default=1, help="lipids per feeding")
     p.add_argument("--near", type=float, default=4.0, help="feed within this distance of the vesicle (0 = anywhere)")
+    p.add_argument("--clear", type=float, default=1.5, help="fed lipids need this gap to every bead (1.0 in dense sugar)")
     p.add_argument("--shear", type=float, default=0.0)
     p.add_argument("--kT", type=float, default=1.1)
     p.add_argument("--steps", type=int, default=200000)
@@ -220,7 +221,7 @@ def main():
         for _ in range(args.every // (args.feed or args.every)):
             w.step(args.feed or args.every)
             if args.feed:
-                feed(w, args.batch, args.near)
+                feed(w, args.batch, args.near, clear=args.clear)
         row = measure(w)
         writer.writerow(row)
         log.flush()
