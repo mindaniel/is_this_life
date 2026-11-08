@@ -21,6 +21,9 @@ energy rules + copying with errors + selection.
   then build the closest honest version.
 - Wants plain explanations, short. Ask before starting long reruns; check
   saved outputs first.
+- Plans a YouTube channel about the project: after every experiment, add to
+  `JOURNEY.md` (episode log: question, what happened, caveats, footage paths).
+  Film new experiments. `runs/` (videos) is not in git: remind to back it up.
 - Runs heavy jobs on their own server (headless). Repo is private:
   github.com/mindaniel/is_this_life.
 
@@ -98,6 +101,8 @@ energy rules + copying with errors + selection.
   inside and out (`--osm`), feeds loose short-tail lipids (`--feed`/`--batch`,
   `--near`), optional shear. Logs biggest cluster, pockets + volumes, length
   (eigenvalue ratio, 1 = ball); saves `*_split_<t>.npz` when 2+ pockets.
+  `--charged f`: fraction of short-tail heads that are COO- (`fa_head`, counter-ions
+  implicit via Debye screening); 0 draws no extra random numbers, so old seeds replay.
   `e15_check.py` tells real daughters from rooms in one body (wall cluster, start
   sugar per pocket, head/tail layering between pockets, `--png` cut).
   Note: stail at oiliness 1.0 = normal tail.

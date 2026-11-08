@@ -41,8 +41,14 @@ from alife.chem.world import STAIL, TAILS, World   # noqa: E402
 FIELDS = ["step", "biggest", "big_short", "clusters30", "loose", "pockets", "volumes", "length", "added"]
 
 
-def mixed_vesicle(w, center, radius, mix, area=1.2):
-    """vesicle3 with each lipid short-tail ("stail") with chance mix. Returns the count."""
+def fa_head(w, charged):
+    """Head of a fatty acid: charged (COO-) with chance `charged`, else neutral (COOH)."""
+    return "fa_head" if charged and w.rng.uniform() < charged else "head"   # no draw at 0: old seeds replay
+
+
+def mixed_vesicle(w, center, radius, mix, charged=0.0, area=1.2):
+    """vesicle3 with each lipid short-tail ("stail") with chance mix; short-tail heads charged
+    with chance `charged`. Returns the count."""
     r0 = w.rules.bond_r0
     count = 0
     for side in (1, -1):   # outer leaflet: heads out; inner: heads in
@@ -53,7 +59,10 @@ def mixed_vesicle(w, center, radius, mix, area=1.2):
         phi = np.pi * (1 + 5 ** 0.5) * k
         u = np.stack([np.sqrt(1 - z ** 2) * np.cos(phi), np.sqrt(1 - z ** 2) * np.sin(phi), z], 1)
         for d in u:
-            add_lipid3(w, center + r_head * d, -side * d, 2, tail="stail" if w.rng.uniform() < mix else "tail")
+            if w.rng.uniform() < mix:
+                add_lipid3(w, center + r_head * d, -side * d, 2, head=fa_head(w, charged), tail="stail")
+            else:
+                add_lipid3(w, center + r_head * d, -side * d, 2)
         count += n
     return count
 
@@ -110,7 +119,7 @@ def biggest(w):
     return mask, c, np.percentile(r, 90)
 
 
-def feed(w, count, near, clear=1.5, tries=20000):
+def feed(w, count, near, clear=1.5, charged=0.0, tries=20000):
     """count loose short-tail lipids at free spots (within `near` outside the vesicle, or anywhere)."""
     r0 = w.rules.bond_r0
     _, c, R = biggest(w) if near else (None, None, None)
@@ -128,7 +137,7 @@ def feed(w, count, near, clear=1.5, tries=20000):
             a /= np.linalg.norm(a)
             beads = (p + np.outer(np.arange(3) * r0, a)) % w.L
             if tree.query(beads)[0].min() > clear:
-                add_lipid3(w, p, a, 2, tail="stail")
+                add_lipid3(w, p, a, 2, head=fa_head(w, charged), tail="stail")
                 added += 1
                 break
     return added
@@ -148,7 +157,7 @@ def build(args):
     w = World(box=args.box, kT=args.kT, seed=args.seed, dim=3)
     w.rules.set_oily("stail", args.short_oily)
     mid = np.full(3, args.box / 2)
-    n = mixed_vesicle(w, mid, args.radius, args.mix)
+    n = mixed_vesicle(w, mid, args.radius, args.mix, args.charged)
     inner, outer = args.radius - 2.5, args.radius + 2.5
     if args.osm:
         r_in = inner - 1.0
@@ -194,6 +203,8 @@ def main():
     p.add_argument("--batch", type=int, default=1, help="lipids per feeding")
     p.add_argument("--near", type=float, default=4.0, help="feed within this distance of the vesicle (0 = anywhere)")
     p.add_argument("--clear", type=float, default=1.5, help="fed lipids need this gap to every bead (1.0 in dense sugar)")
+    p.add_argument("--charged", type=float, default=0.0,
+                   help="fraction of short-tail (fatty acid) heads that are charged COO- (0.5 = pH near pKa)")
     p.add_argument("--shear", type=float, default=0.0)
     p.add_argument("--kT", type=float, default=1.1)
     p.add_argument("--steps", type=int, default=200000)
@@ -205,7 +216,7 @@ def main():
     args = p.parse_args()
 
     name = (f"r{args.radius:g}_mix{args.mix:g}_o{args.short_oily:g}_osm{args.osm:g}_f{args.feed}x{args.batch}"
-            f"_n{args.near:g}_sh{args.shear:g}_s{args.seed}")
+            f"_n{args.near:g}_sh{args.shear:g}" + (f"_q{args.charged:g}" if args.charged else "") + f"_s{args.seed}")
     os.makedirs(args.out, exist_ok=True)
     w, n = build(args)
     print(f"{name}: {n} lipids, {w.n} beads, sugar inside {getattr(w, 'n_sugar_in', 0)}", flush=True)
@@ -221,7 +232,7 @@ def main():
         for _ in range(args.every // (args.feed or args.every)):
             w.step(args.feed or args.every)
             if args.feed:
-                feed(w, args.batch, args.near, clear=args.clear)
+                feed(w, args.batch, args.near, clear=args.clear, charged=args.charged)
         row = measure(w)
         writer.writerow(row)
         log.flush()
