@@ -98,6 +98,8 @@ energy rules + copying with errors + selection.
   inside and out (`--osm`), feeds loose short-tail lipids (`--feed`/`--batch`,
   `--near`), optional shear. Logs biggest cluster, pockets + volumes, length
   (eigenvalue ratio, 1 = ball); saves `*_split_<t>.npz` when 2+ pockets.
+  `e15_check.py` tells real daughters from rooms in one body (wall cluster, start
+  sugar per pocket, head/tail layering between pockets, `--png` cut).
   Note: stail at oiliness 1.0 = normal tail.
 
 ## Rules of thumb (learned the hard way)
@@ -214,6 +216,10 @@ energy rules + copying with errors + selection.
   into thick lipid masses that make 2-4 rooms in one body (not a split). Check
   pockets by wall cluster + head/tail layering along the line between them, not by
   pocket count (touching vesicles = one cluster).
+  Filmed 400k rerun (seed 1, `runs/e15c/long/`): split at ~88k, the two sacs drift
+  back together and fuse at ~225-235k, then the vesicle stretches and splits again
+  (~300k). Division happens but isn't final; ~15% of start sugar leaked by 400k.
+  `experiments/e15_check.py` = the pocket/layering/sugar check.
 
 ## Next steps (user's choice; ask before starting a big one)
 

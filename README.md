@@ -578,3 +578,27 @@ python experiments/e15_split3d.py --box 80 --osm 0.15 --feed 200 --batch 5 --nea
   only briefly in 1/3 seeds.
 - Flagged shortcuts: same as above (ready-made vesicle, monomer food,
   implicit water, Cooke lipids, sin-profile current, start inside hypotonic).
+
+#### Longer, filmed: current 0.05, seed 1, 400k steps (`runs/e15c/long/`)
+
+Same seed, so the first 200k replay the run above bead for bead (checked).
+`experiments/e15_check.py` checks each snapshot (wall cluster, start sugar per
+pocket, head/tail layering between pockets, a cut picture).
+
+| steps | what happens |
+|---|---|
+| 0-85k | stretches (shape 1 -> 3.8), water 1530 -> ~440 |
+| ~88k | pinches into two sealed sacs side by side, each with start sugar |
+| 88-225k | two sacs; they slowly drift back together (24 -> 13 apart) |
+| ~225-235k | the walls between them thin to one bilayer and the sacs **fuse** back into one (one pocket ~370-670) |
+| 235-295k | one vesicle again, keeps growing on food (wall 3100 -> 3300) |
+| ~300k-400k | stretches again (shape ~6) and splits again: a long tube with 2-3 sealed rooms (249 + 102 at the end) |
+
+- Division by a gentle current is real but **not final**: the daughters stay
+  pressed together and later fuse. Splitting and fusing both happen, with no
+  rule forcing either.
+- Contents leak slowly: of 173 start sugar beads, 13 are far out at 200k and
+  26 at 400k (~15%); the rest stay in the sacs.
+- What would keep daughters apart, in the real world: stronger flow that
+  carries them away, charged fatty-acid heads that repel (our lipids are
+  neutral), or simply a bigger, emptier pond. Not tried yet.
