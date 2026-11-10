@@ -83,7 +83,8 @@ class World:
 
     def __init__(self, box=40.0, rules=None, kT=1.0, gamma=1.0, dt=0.01, seed=0, dim=2):
         self.dim = dim
-        self.L = float(box)
+        # one number = cube (L is a float, as always); one length per axis = long box (L is an array)
+        self.L = float(box) if np.ndim(box) == 0 else np.array(box, dtype=float)
         self.rules = rules or Rules()
         self.kT, self.gamma, self.dt = kT, gamma, dt
         self.rng = np.random.default_rng(seed)
@@ -212,6 +213,10 @@ class World:
         d = self.pos[j] - self.pos[i]
         return d - self.L * np.round(d / self.L)
 
+    def box(self):
+        """Box length per axis as an array (for the compiled kernels)."""
+        return np.broadcast_to(np.asarray(self.L, dtype=float), (self.dim,)).copy()
+
     def _wrapped(self):
         p = np.mod(self.pos, self.L)
         p[p >= self.L] = 0.0
@@ -235,14 +240,14 @@ class World:
             if np.max(np.einsum("ij,ij->i", moved, moved)) < (self.skin / 2) ** 2:
                 return self._pairs
         p = self._wrapped()
-        if self.fast and fast.HAVE_NUMBA and self.L >= 3 * (self.rules.charge_cutoff + self.skin):
+        if self.fast and fast.HAVE_NUMBA and np.min(self.L) >= 3 * (self.rules.charge_cutoff + self.skin):
             everyone = np.arange(self.n)
             pairs = fast.cell_pairs if self.dim == 2 else                 lambda *a: fast.cell_pairs3(*a, fast.HALF3)
-            self._pairs = pairs(p, self.L, self.rules.cutoff + self.skin,
+            self._pairs = pairs(p, self.box(), self.rules.cutoff + self.skin,
                                 self._group(), self.frozen, everyone)
             charged = np.flatnonzero(self.rules.charge[self.type] != 0)
             no_rock = np.zeros(self.n, dtype=bool)   # charged list never skipped rock pairs
-            self._charged_pairs = pairs(p, self.L, self.rules.charge_cutoff + self.skin,
+            self._charged_pairs = pairs(p, self.box(), self.rules.charge_cutoff + self.skin,
                                         self._group(), no_rock, charged)
             self._pos_at_build = self.pos.copy()
             return self._pairs
@@ -274,15 +279,15 @@ class World:
         F = np.zeros_like(self.pos)
         pos = np.ascontiguousarray(self.pos)
         pairs = self._neighbour_pairs()
-        energy = fast.pair_forces(pos, self.L, pairs, self.type, r.sigma, r.rc, r.eps, r.wc, F)
+        energy = fast.pair_forces(pos, self.box(), pairs, self.type, r.sigma, r.rc, r.eps, r.wc, F)
         cp = self._charged_pairs
         if cp is not None and len(cp):
-            energy += fast.charge_forces(pos, self.L, cp, self.type, r.charge, r.coulomb, r.debye,
+            energy += fast.charge_forces(pos, self.box(), cp, self.type, r.charge, r.coulomb, r.debye,
                                          r.charge_cutoff, F)
         for idx, k, r0 in ((self.bonds, r.bond_k, r.bond_r0),
                            (self.bends, r.bend_k, r.bend_r0)):
             if len(idx):
-                energy += fast.spring_forces(pos, self.L, idx, k, r0, F)
+                energy += fast.spring_forces(pos, self.box(), idx, k, r0, F)
         return F, energy
 
     def forces_numpy(self):

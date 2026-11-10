@@ -32,6 +32,7 @@ ELEMENTS = [
     ("stail",    0,   1.00, 1.0, "#F2CD7E", "short-chain tail (fatty-acid-like); Rules.set_oily tunes it"),
     ("hcn",      0,   0.80, 0.0, "#2A6FB0", "hydrogen cyanide, HCN. Alone = HCN; chains = HCN polymer (dark, absorbs light)"),
     ("nh3",      0,   0.75, 0.0, "#A3C9E8", "ammonia, NH3 (a base: speeds HCN polymer; N source for amino acids)"),
+    ("cat",      0,   1.00, 0.0, "#2E8B57", "catalyst: a big folded molecule (short peptide / ribozyme), can't cross a membrane"),
 ]
 
 NAMES = [row[0] for row in ELEMENTS]

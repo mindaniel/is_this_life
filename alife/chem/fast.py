@@ -1,6 +1,7 @@
 """Compiled force loops (numba). Same math as World.forces in numpy.
 
 Work in 2D or 3D (pos with 2 or 3 columns); 2D gives the same numbers as before.
+L is the box length per axis (array, one per column); a cube gives the same numbers as before.
 
 One pass over each pair list instead of many temporary numpy arrays:
 ~5x faster for big worlds. If numba is missing, World falls back to numpy.
@@ -28,12 +29,12 @@ def pair_forces(pos, L, pairs, typ, sigma, rc, eps, wc, F):
         i, j = pairs[p, 0], pairs[p, 1]
         dx = pos[j, 0] - pos[i, 0]
         dy = pos[j, 1] - pos[i, 1]
-        dx -= L * np.rint(dx / L)
-        dy -= L * np.rint(dy / L)
+        dx -= L[0] * np.rint(dx / L[0])
+        dy -= L[1] * np.rint(dy / L[1])
         dz = 0.0
         if three:
             dz = pos[j, 2] - pos[i, 2]
-            dz -= L * np.rint(dz / L)
+            dz -= L[2] * np.rint(dz / L[2])
         r2 = dx * dx + dy * dy + dz * dz
         ti, tj = typ[i], typ[j]
         c = rc[ti, tj]
@@ -74,12 +75,12 @@ def charge_forces(pos, L, pairs, typ, charge, coulomb, debye, cut, F):
         i, j = pairs[p, 0], pairs[p, 1]
         dx = pos[j, 0] - pos[i, 0]
         dy = pos[j, 1] - pos[i, 1]
-        dx -= L * np.rint(dx / L)
-        dy -= L * np.rint(dy / L)
+        dx -= L[0] * np.rint(dx / L[0])
+        dy -= L[1] * np.rint(dy / L[1])
         dz = 0.0
         if three:
             dz = pos[j, 2] - pos[i, 2]
-            dz -= L * np.rint(dz / L)
+            dz -= L[2] * np.rint(dz / L[2])
         dist = max(math.sqrt(dx * dx + dy * dy + dz * dz), 0.5)
         if dist >= cut:
             continue
@@ -107,12 +108,12 @@ def spring_forces(pos, L, idx, k, r0, F):
         i, j = idx[p, 0], idx[p, 1]
         dx = pos[j, 0] - pos[i, 0]
         dy = pos[j, 1] - pos[i, 1]
-        dx -= L * np.rint(dx / L)
-        dy -= L * np.rint(dy / L)
+        dx -= L[0] * np.rint(dx / L[0])
+        dy -= L[1] * np.rint(dy / L[1])
         dz = 0.0
         if three:
             dz = pos[j, 2] - pos[i, 2]
-            dz -= L * np.rint(dz / L)
+            dz -= L[2] * np.rint(dz / L[2])
         dist = math.sqrt(dx * dx + dy * dy + dz * dz)
         stretch = dist - r0
         s = -k * stretch / max(dist, 1e-9)
@@ -134,17 +135,17 @@ def cell_pairs(p, L, cutoff, mol, frozen, sel):
     Cell list: beads sorted into square cells at least `cutoff` wide, each
     cell checked against itself and 4 neighbours (half the stencil, so every
     pair is found once). Same-molecule and rock-rock pairs are skipped.
-    Needs at least 3 cells per side. p must be wrapped into [0, L).
+    Needs at least 3 cells per side (cells may be oblong in a long box). p must be wrapped into [0, L).
     """
-    nc = int(L // cutoff)
-    size = L / nc
+    nx, ny = int(L[0] // cutoff), int(L[1] // cutoff)
+    sx, sy = L[0] / nx, L[1] / ny
     n = sel.shape[0]
     cell = np.empty(n, np.int64)
-    count = np.zeros(nc * nc + 1, np.int64)
+    count = np.zeros(nx * ny + 1, np.int64)
     for a in range(n):
-        cx = min(int(p[sel[a], 0] / size), nc - 1)
-        cy = min(int(p[sel[a], 1] / size), nc - 1)
-        cell[a] = cx * nc + cy
+        cx = min(int(p[sel[a], 0] / sx), nx - 1)
+        cy = min(int(p[sel[a], 1] / sy), ny - 1)
+        cell[a] = cx * ny + cy
         count[cell[a] + 1] += 1
     start = np.cumsum(count)
     fill = start[:-1].copy()
@@ -156,9 +157,9 @@ def cell_pairs(p, L, cutoff, mol, frozen, sel):
     out = np.empty((cap, 2), np.int64)
     m = 0
     c2 = cutoff * cutoff
-    for cx in range(nc):
-        for cy in range(nc):
-            here = cx * nc + cy
+    for cx in range(nx):
+        for cy in range(ny):
+            here = cx * ny + cy
             for k in range(5):
                 if k == 0:
                     ox, oy = 0, 0
@@ -170,7 +171,7 @@ def cell_pairs(p, L, cutoff, mol, frozen, sel):
                     ox, oy = 0, 1
                 else:
                     ox, oy = -1, 1
-                other = ((cx + ox) % nc) * nc + (cy + oy) % nc
+                other = ((cx + ox) % nx) * ny + (cy + oy) % ny
                 for a in range(start[here], start[here + 1]):
                     i = order[a]
                     b0 = a + 1 if k == 0 else start[other]
@@ -180,8 +181,8 @@ def cell_pairs(p, L, cutoff, mol, frozen, sel):
                             continue
                         dx = p[j, 0] - p[i, 0]
                         dy = p[j, 1] - p[i, 1]
-                        dx -= L * np.rint(dx / L)
-                        dy -= L * np.rint(dy / L)
+                        dx -= L[0] * np.rint(dx / L[0])
+                        dy -= L[1] * np.rint(dy / L[1])
                         if dx * dx + dy * dy < c2:
                             if m == cap:
                                 cap *= 2
@@ -202,16 +203,16 @@ HALF3 = np.array([(x, y, z) for x in (-1, 0, 1) for y in (-1, 0, 1) for z in (-1
 @njit(cache=True)
 def cell_pairs3(p, L, cutoff, mol, frozen, sel, half):
     """3D version of cell_pairs: cubic cells, each checked against itself and 13 neighbours."""
-    nc = int(L // cutoff)
-    size = L / nc
+    nx, ny, nz = int(L[0] // cutoff), int(L[1] // cutoff), int(L[2] // cutoff)
+    sx, sy, sz = L[0] / nx, L[1] / ny, L[2] / nz
     n = sel.shape[0]
     cell = np.empty(n, np.int64)
-    count = np.zeros(nc * nc * nc + 1, np.int64)
+    count = np.zeros(nx * ny * nz + 1, np.int64)
     for a in range(n):
-        cx = min(int(p[sel[a], 0] / size), nc - 1)
-        cy = min(int(p[sel[a], 1] / size), nc - 1)
-        cz = min(int(p[sel[a], 2] / size), nc - 1)
-        cell[a] = (cx * nc + cy) * nc + cz
+        cx = min(int(p[sel[a], 0] / sx), nx - 1)
+        cy = min(int(p[sel[a], 1] / sy), ny - 1)
+        cz = min(int(p[sel[a], 2] / sz), nz - 1)
+        cell[a] = (cx * ny + cy) * nz + cz
         count[cell[a] + 1] += 1
     start = np.cumsum(count)
     fill = start[:-1].copy()
@@ -223,15 +224,15 @@ def cell_pairs3(p, L, cutoff, mol, frozen, sel, half):
     out = np.empty((cap, 2), np.int64)
     m = 0
     c2 = cutoff * cutoff
-    for cx in range(nc):
-        for cy in range(nc):
-            for cz in range(nc):
-                here = (cx * nc + cy) * nc + cz
+    for cx in range(nx):
+        for cy in range(ny):
+            for cz in range(nz):
+                here = (cx * ny + cy) * nz + cz
                 for k in range(half.shape[0] + 1):
                     if k == 0:
                         other = here
                     else:
-                        other = (((cx + half[k - 1, 0]) % nc) * nc + (cy + half[k - 1, 1]) % nc) * nc                             + (cz + half[k - 1, 2]) % nc
+                        other = (((cx + half[k - 1, 0]) % nx) * ny + (cy + half[k - 1, 1]) % ny) * nz                             + (cz + half[k - 1, 2]) % nz
                     for a in range(start[here], start[here + 1]):
                         i = order[a]
                         b0 = a + 1 if k == 0 else start[other]
@@ -242,9 +243,9 @@ def cell_pairs3(p, L, cutoff, mol, frozen, sel, half):
                             dx = p[j, 0] - p[i, 0]
                             dy = p[j, 1] - p[i, 1]
                             dz = p[j, 2] - p[i, 2]
-                            dx -= L * np.rint(dx / L)
-                            dy -= L * np.rint(dy / L)
-                            dz -= L * np.rint(dz / L)
+                            dx -= L[0] * np.rint(dx / L[0])
+                            dy -= L[1] * np.rint(dy / L[1])
+                            dz -= L[2] * np.rint(dz / L[2])
                             if dx * dx + dy * dy + dz * dz < c2:
                                 if m == cap:
                                     cap *= 2

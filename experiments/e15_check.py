@@ -28,8 +28,8 @@ SUGAR, HEADS = INDEX["sugar"], [INDEX["head"], INDEX["fa_head"]]
 
 def load(f, n_lipids, radius):
     z = np.load(f)
-    L = float(z["L"])
-    w = World(box=L, dim=3)
+    L = z["L"]   # one number (cube) or one per axis (long box)
+    w = World(box=L if L.ndim else float(L), dim=3)
     w.pos, w.type, w.mol = z["pos"] % L, z["type"], z["mol"]
     w.vel, w.frozen, w.n_mol = np.zeros_like(w.pos), np.zeros(len(w.pos), bool), int(w.mol.max()) + 1
     osm = float(f.split("osm")[1].split("_")[0])
@@ -40,12 +40,12 @@ def load(f, n_lipids, radius):
 
 def pockets(w, min_volume=30, one_cluster=0.8):
     """water_pockets3 with each pocket's wall cluster, start-sugar count and centre."""
-    m, r = int(np.ceil(w.L)), 1
+    m, r = np.ceil(np.broadcast_to(w.L, (3,))).astype(int), 1
     has_tail = np.zeros(w.n_mol, bool)
     has_tail[w.mol[np.isin(w.type, TAILS)]] = True
     lipid = has_tail[w.mol]
     lab = cluster_labels(w)
-    wall, owner = np.zeros((m,) * 3, bool), np.full((m,) * 3, -1)
+    wall, owner = np.zeros(tuple(m), bool), np.full(tuple(m), -1)
     idx = w._wrapped()[lipid].astype(int) % m
     wall[tuple(idx.T)] = True
     owner[tuple(idx.T)] = lab[w.mol[lipid]]
@@ -122,7 +122,8 @@ def picture(ax, w, ps, title):
     for m, col, sz in ((tail, "#EF9F27", 6), (np.isin(w.type, HEADS), "#D85A30", 8),
                        ((w.type == SUGAR) & ~w.start_sugar, "#BBBBBB", 6), (w.start_sugar, "#2A6FB0", 12)):
         ax.scatter(t[cut & m] - D / 2, y[cut & m], s=sz, c=col)
-    ax.set_xlim(-30, 30), ax.set_ylim(-30, 30), ax.set_aspect("equal")
+    lim = max(30, D / 2 + 15)
+    ax.set_xlim(-lim, lim), ax.set_ylim(-30, 30), ax.set_aspect("equal")
     ax.set_title(title, fontsize=8)
 
 

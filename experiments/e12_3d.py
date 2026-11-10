@@ -84,7 +84,7 @@ class Film:
         d -= w.L * np.round(d / w.L)
         axes = np.linalg.eigh(np.cov(d[mine].T))[1]   # columns: thinnest, middle, widest direction
         u, depth, v = d @ axes[:, 2], d @ axes[:, 1], d @ axes[:, 0]
-        r = min(np.abs(np.c_[u, depth, v][mine]).max() + 2, w.L / 2)   # zoom to the cluster
+        r = min(np.abs(np.c_[u, depth, v][mine]).max() + 2, np.max(w.L) / 2)   # zoom to the cluster
         half = mine & (depth < 0)   # front half cut away so you see inside
         self.a3.clear()
         self.a3.scatter(u[half & ~head], depth[half & ~head], v[half & ~head], s=4, c="#EF9F27", alpha=0.5, depthshade=True)

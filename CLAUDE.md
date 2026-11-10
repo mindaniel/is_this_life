@@ -105,7 +105,13 @@ energy rules + copying with errors + selection.
   implicit via Debye screening); 0 draws no extra random numbers, so old seeds replay.
   `e15_check.py` tells real daughters from rooms in one body (wall cluster, start
   sugar per pocket, head/tail layering between pockets, `--png` cut).
-  Note: stail at oiliness 1.0 = normal tail.
+  Note: stail at oiliness 1.0 = normal tail. `--box-x` = long box (x only).
+- Long box: `World(box=(Lx, Ly, Lz))` makes `w.L` an array (a number = cube, bit-identical
+  to before, checked by replaying e15d). Kernels take `w.box()` (length per axis).
+- `reactions.LipidJoin` + `experiments/e16_catalyst.py`: "cat" bead (end of element
+  table) joins two single-chain lipids head to head into a two-chain lipid
+  (phospholipid-like); no fuel yet (flagged). e16 = vesicle A with catalysts vs B with
+  as many sugar beads; logs chains / two-chain lipids per wall; film = slice + counts.
 
 ## Rules of thumb (learned the hard way)
 
@@ -247,3 +253,8 @@ energy rules + copying with errors + selection.
    (shear from currents can split it), something trapped inside.
 5. Later stages per README ladder: genome, selection, phototaxis, engulfing,
    neurons.
+6. (agreed 2026-11-10, after e16) Fuel for the e16 catalyst (used-up food molecule;
+   by-products heat or gas that feed back), then light-driven charge pump pigment,
+   then gated channels (stretch first; light, heat, chemical, voltage later). The
+   user's idea: "ports" that light/heat open so charge can pass; reactions making
+   heat or gas that change what happens next. README "Next protocell steps".

@@ -170,9 +170,9 @@ def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8):
     """
     from scipy import ndimage
 
-    m = int(np.ceil(world.L / cell))
-    wall = np.zeros((m, m, m), dtype=bool)
-    owner = np.full((m, m, m), -1)
+    m = np.ceil(np.broadcast_to(world.L, (3,)) / cell).astype(int)   # voxels per axis (long box ok)
+    wall = np.zeros(tuple(m), dtype=bool)
+    owner = np.full(tuple(m), -1)
     has_tail = np.zeros(world.n_mol, dtype=bool)
     has_tail[world.mol[np.isin(world.type, TAILS)]] = True
     lipid = has_tail[world.mol]

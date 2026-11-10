@@ -15,6 +15,22 @@ from energy rules + copying with errors + selection.
 | 5. Multicell + neurons | cells with ion channels, spikes | Do signaling cells specialize? | planned |
 | 6. Brain | spiking networks, STDP, dopamine | Does a creature learn in its lifetime? | planned |
 
+Next protocell steps (agreed 2026-11-10), in this order:
+
+1. **Fuel for the catalyst.** e16's catalyst joins fatty acids for free (a
+   shortcut). Make it use up an energy-rich food molecule, and let that reaction
+   give off heat or a gas (CO2 / H2) that feeds back on what happens next
+   (heat speeds nearby reactions; gas changes acidity or bubbles out). Honest
+   scale note: at bead scale (~100 nm) heat spreads out almost at once; it adds
+   up at pond scale.
+2. **Light power.** A pigment in the wall that, when lit, pushes charge (H+)
+   across the membrane (like bacteriorhodopsin): a charge difference the cell
+   can use.
+3. **Gated channels** (pores that open on a signal): stretch-gated first (opens
+   when the cell swells too much: sets how big it can grow), then light-gated
+   (channelrhodopsin), heat-gated (TRP), chemical- and voltage-gated (the road
+   to neurons, stage 5).
+
 ## Stage 1: membrane self-assembly
 
 Model: 2D coarse-grained lipids (Cooke-Kremer-Deserno style), implicit water.

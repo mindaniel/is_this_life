@@ -143,8 +143,8 @@ def feed(w, count, near, clear=1.5, charged=0.0, tries=20000):
     return added
 
 
-def shear_flow(L, shear):
-    k = 2 * np.pi / L
+def shear_flow(Lz, shear):
+    k = 2 * np.pi / Lz
 
     def flow(pos):
         v = np.zeros_like(pos)
@@ -154,15 +154,16 @@ def shear_flow(L, shear):
 
 
 def build(args):
-    w = World(box=args.box, kT=args.kT, seed=args.seed, dim=3)
+    box = args.box if args.box_x is None else (args.box_x, args.box, args.box)
+    w = World(box=box, kT=args.kT, seed=args.seed, dim=3)
     w.rules.set_oily("stail", args.short_oily)
-    mid = np.full(3, args.box / 2)
+    mid = np.broadcast_to(np.asarray(box, dtype=float), (3,)) / 2
     n = mixed_vesicle(w, mid, args.radius, args.mix, args.charged)
     inner, outer = args.radius - 2.5, args.radius + 2.5
     if args.osm:
         r_in = inner - 1.0
         n_in = int(round(args.osm * 4 / 3 * np.pi * r_in ** 3))
-        n_out = int(round(args.osm * (args.box ** 3 - 4 / 3 * np.pi * (outer + 1.0) ** 3)))
+        n_out = int(round(args.osm * (np.prod(np.broadcast_to(box, (3,))) - 4 / 3 * np.pi * (outer + 1.0) ** 3)))
         scatter_fast(w, n_in, lambda p: np.linalg.norm(offset(w, p, mid), axis=1) < r_in)
         scatter_fast(w, n_out, lambda p: np.linalg.norm(offset(w, p, mid), axis=1) > outer + 1.0)
         w.n_sugar_in = n_in
@@ -170,7 +171,7 @@ def build(args):
     w.t = 0
     w.n_start = w.n_mol
     if args.shear:
-        w.flow = shear_flow(args.box, args.shear)
+        w.flow = shear_flow(args.box, args.shear)   # bands along z; z is always --box long
     return w, n
 
 
@@ -196,6 +197,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--radius", type=float, default=10.0, help="bilayer middle radius of the start vesicle")
     p.add_argument("--box", type=float, default=50.0)
+    p.add_argument("--box-x", type=float, default=None,
+                   help="long box: x length (y, z stay --box); room for daughters to drift apart")
     p.add_argument("--mix", type=float, default=0.5, help="fraction of short-tail lipids in the start vesicle")
     p.add_argument("--short-oily", type=float, default=1.0, help="oiliness of short tails (lower = leave more)")
     p.add_argument("--osm", type=float, default=0.03, help="sugar beads per unit volume, inside and out")
@@ -216,7 +219,8 @@ def main():
     args = p.parse_args()
 
     name = (f"r{args.radius:g}_mix{args.mix:g}_o{args.short_oily:g}_osm{args.osm:g}_f{args.feed}x{args.batch}"
-            f"_n{args.near:g}_sh{args.shear:g}" + (f"_q{args.charged:g}" if args.charged else "") + f"_s{args.seed}")
+            f"_n{args.near:g}_sh{args.shear:g}" + (f"_q{args.charged:g}" if args.charged else "")
+            + (f"_x{args.box_x:g}" if args.box_x else "") + f"_s{args.seed}")
     os.makedirs(args.out, exist_ok=True)
     w, n = build(args)
     print(f"{name}: {n} lipids, {w.n} beads, sugar inside {getattr(w, 'n_sugar_in', 0)}", flush=True)

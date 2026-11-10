@@ -150,3 +150,22 @@ Running themes to come back to on camera:
   (charged heads: split, drift apart, meet across the box edge, split again)**,
   pictures `runs/e15c/long/check.png`, `runs/e15d/check200k.png` (charged vs
   neutral walls), `runs/e15d/drift.png` (the plot twist).
+
+## Ep 12. A catalyst inside: can contents decide who grows? (2026-11-10, running)
+
+- **Question:** so far every bag is the same; what's inside doesn't matter. For
+  evolution it must. Lab result to test (Budin & Szostak 2011, Adamala & Szostak
+  2013): a catalyst trapped in a vesicle joins fatty acids into two-tail lipids
+  (like real cell membranes); those never leave, so that vesicle keeps its wall
+  and grows while its neighbour shrinks.
+- **Built:** two identical bags side by side; A holds 20 catalyst beads, B holds 20
+  plain sugar beads (same fullness, no chemistry). Nothing says "grow".
+- **Shortcut (said out loud):** the joining costs no energy yet. Next: a fuel
+  molecule that gets used up.
+- **Same day:** the long-box rerun of Ep 11 (world twice as long, so daughters can
+  drift apart without wrapping round) is running.
+- **Viewer ideas for later (from the user):** "ports" in the wall that light or heat
+  open so charge can flow (real: light-, heat-, stretch-gated channels), and
+  reactions that give off heat or gas and change what happens next. On the
+  roadmap: fuel -> light-driven charge pump -> gated channels.
+- **Footage (when done):** `e16_cats20_s0.mp4`, `e15e_long_q0.5_s0.mp4`.

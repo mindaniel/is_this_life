@@ -23,7 +23,7 @@ from scipy.spatial import cKDTree
 
 from .elements import INDEX
 
-CARB, CA = INDEX["carb"], INDEX["Ca"]
+CARB, CA, CAT, TAIL, STAIL = INDEX["carb"], INDEX["Ca"], INDEX["cat"], INDEX["tail"], INDEX["stail"]
 
 
 class Formose:
@@ -129,3 +129,80 @@ def chain_lengths(world):
         return np.zeros(1, dtype=int)
     size = np.bincount(world.mol[carb])
     return np.bincount(size[size > 0])
+
+
+class LipidJoin:
+    """A catalyst joins two fatty acids into one two-chain lipid (phospholipid-like).
+
+    Real cells make phospholipids with enzymes: two fatty-acid chains on one
+    glycerol-phosphate head. Lab protocells (Budin & Szostak 2011; Adamala &
+    Szostak 2013 with a catalyst trapped inside) show why it matters: two-chain
+    lipids almost never leave a membrane, so a vesicle that makes them keeps its
+    fatty acids and grows at its neighbours' expense. Nothing here says "grow".
+
+      join   two single fatty acids (head + one tail chain) whose heads touch
+             (within `reach`) bond head to head, with chance p_join if a "cat"
+             bead is within `cat_reach` of the pair, p_join * no_cat if not.
+      break  each head-head bond breaks with chance p_break (slow hydrolysis).
+
+    Shortcut (flagged): the join uses no fuel. In real chemistry it needs an
+    activated building block (glycerol phosphate, ATP-like energy); the catalyst
+    only speeds it up. Next step: make a food bead that is used up.
+    """
+
+    def __init__(self, every=50, reach=1.3, cat_reach=2.5, p_join=0.2, no_cat=0.0, p_break=0.0):
+        self.every, self.reach, self.cat_reach = every, reach, cat_reach
+        self.p_join, self.no_cat, self.p_break = p_join, no_cat, p_break
+        self.joins = self.breaks = 0
+
+    def single_heads(self, world):
+        """Head beads of lone fatty acids: molecules of one head + one tail chain (short or long)."""
+        heads = np.isin(world.type, (INDEX["head"], INDEX["fa_head"]))
+        n_head = np.bincount(world.mol[heads], minlength=world.n_mol)
+        n_tail = np.bincount(world.mol[np.isin(world.type, (TAIL, STAIL))], minlength=world.n_mol)
+        size = np.bincount(world.mol, minlength=world.n_mol)
+        lone = (n_head == 1) & (n_tail >= 1) & (size == n_head + n_tail)
+        return np.flatnonzero(heads & lone[world.mol])
+
+    def head_bonds(self, world):
+        """Indices of bonds that join two heads (the two-chain lipids)."""
+        heads = np.isin(world.type, (INDEX["head"], INDEX["fa_head"]))
+        b = world.bonds
+        return np.flatnonzero(heads[b[:, 0]] & heads[b[:, 1]]) if len(b) else np.zeros(0, int)
+
+    def react(self, world):
+        self._break(world)
+        self._join(world)
+
+    def _join(self, world):
+        heads = self.single_heads(world)
+        if len(heads) < 2:
+            return
+        p = world._wrapped()
+        pairs = cKDTree(p[heads], boxsize=world.L).query_pairs(self.reach, output_type="ndarray")
+        if not len(pairs):
+            return
+        i, j = heads[pairs[:, 0]], heads[pairs[:, 1]]
+        mid = (p[i] + 0.5 * world.delta(i, j)) % world.L
+        chance = np.full(len(i), self.p_join * self.no_cat)
+        cat = np.flatnonzero(world.type == CAT)
+        if len(cat):
+            near = cKDTree(p[cat], boxsize=world.L).query(mid, distance_upper_bound=self.cat_reach)[0] < np.inf
+            chance[near] = self.p_join
+        hit = world.rng.uniform(size=len(i)) < chance
+        used = set()
+        for a, b in zip(i[hit], j[hit]):
+            if a in used or b in used:
+                continue
+            used.update((a, b))
+            world.add_bond(a, b)
+            self.joins += 1
+
+    def _break(self, world):
+        if not self.p_break:
+            return
+        k = self.head_bonds(world)
+        hit = k[world.rng.uniform(size=len(k)) < self.p_break]
+        for b in sorted(hit, reverse=True):
+            world.break_bond(b)
+            self.breaks += 1
