@@ -10,7 +10,7 @@ lipids stay put, so the vesicle that makes them holds its fatty acids and takes
 up loose ones; its neighbour shrinks. Nothing is coded to make A grow.
 
 Logged every --every steps, for A and B (the lipid cluster lining each one's
-marker beads: A's catalysts, B's extra sugar): fatty-acid chains in the wall,
+inner beads: the sugar and catalyst/extra sugar put inside at the start): fatty-acid chains in the wall,
 two-chain lipids in it, sealed pockets; loose lipids; joins so far.
 
     python experiments/e16_catalyst.py --steps 200000 --video runs/video/e16_s0.mp4
@@ -48,16 +48,15 @@ def build(args):
     r_in, outer = args.radius - 3.5, args.radius + 2.5
     inside = [lambda p, c=c: np.linalg.norm(offset(w, p, c), axis=1) < r_in for c in centres]
     n_in = int(round(args.osm * 4 / 3 * np.pi * r_in ** 3))
-    for keep in inside:
+    w.markers = []   # bead numbers inside A and B (beads are only ever appended, so these stay valid)
+    for keep, extra in ((inside[0], "cat"), (inside[1], "sugar")):
+        start = w.n
         scatter_fast(w, n_in, keep)
-    scatter_fast(w, args.cats, inside[0], name="cat")            # A: catalyst
-    scatter_fast(w, args.cats, inside[1])                        # B: same number of plain sugar beads
-    w.marker_B = np.zeros(w.n, bool)
-    w.marker_B[-args.cats:] = args.cats > 0
+        scatter_fast(w, args.cats, keep, name=extra)   # A: catalyst; B: as many plain sugar beads
+        w.markers.append(np.arange(start, w.n))
     n_out = int(round(args.osm * (np.prod(L) - 2 * 4 / 3 * np.pi * (outer + 1.0) ** 3)))
     scatter_fast(w, n_out, lambda p: np.all([np.linalg.norm(offset(w, p, c), axis=1) > outer + 1.0
                                              for c in centres], axis=0))
-    w.marker_B = np.concatenate([w.marker_B, np.zeros(w.n - len(w.marker_B), bool)])
     w.step(300, max_force=50)
     w.t = 0
     w.n_start = w.n_mol
@@ -68,8 +67,6 @@ def build(args):
 
 def wall_of(w, markers, lab, lipid_beads):
     """Lipid cluster lining the marker beads: majority vote of each marker's nearest lipid bead."""
-    if not markers.any():
-        return -1
     tree = cKDTree(w._wrapped()[lipid_beads], boxsize=w.L)
     _, k = tree.query(w._wrapped()[markers])
     return int(np.bincount(lab[w.mol[lipid_beads][k]]).argmax())
@@ -85,13 +82,12 @@ def measure(w, rx):
     double = np.zeros(w.n_mol, bool)
     double[w.mol[w.bonds[rx.head_bonds(w)][:, 0]]] = True
     row = {"step": w.t}
-    cat = w.type == INDEX["cat"]
-    walls = {"A": wall_of(w, cat, lab, lipid_beads), "B": wall_of(w, w.marker_B, lab, lipid_beads)}
+    walls = {"A": wall_of(w, w.markers[0], lab, lipid_beads), "B": wall_of(w, w.markers[1], lab, lipid_beads)}
     for k, c in walls.items():
-        mine = heads & (lab[w.mol] == c) if c >= 0 else np.zeros(w.n, bool)
+        mine = heads & (lab[w.mol] == c)
         row[f"{k}_chains"] = int(mine.sum())                         # one head per fatty-acid chain
         row[f"{k}_double"] = int(np.unique(w.mol[mine & double[w.mol]]).size)
-    row["same_cluster"] = int(walls["A"] == walls["B"] and walls["A"] >= 0)
+    row["same_cluster"] = int(walls["A"] == walls["B"])
     vol, _ = water_pockets3(w)
     row["pockets"] = len(vol)
     row["volumes"] = " ".join(str(int(v)) for v in sorted(vol, reverse=True))
@@ -204,7 +200,7 @@ def main():
             print(f"step {w.t} {row} ({time.time() - t0:.0f}s)", flush=True)
     log.close()
     np.savez_compressed(os.path.join(args.out, name + "_final.npz"), pos=w.pos, type=w.type, mol=w.mol, L=w.L,
-                        bonds=w.bonds, marker_B=w.marker_B)
+                        bonds=w.bonds, marker_A=w.markers[0], marker_B=w.markers[1])
     if film:
         film.close()
 
