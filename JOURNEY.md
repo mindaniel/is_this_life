@@ -129,9 +129,24 @@ Running themes to come back to on camera:
 - **Longer film (400k steps):** the two daughters stay pressed together and
   **fuse back** at ~225k, then the vesicle stretches and splits again. Division
   happens but isn't final.
-- **Next (running 2026-11-08):** charged fatty-acid heads (real fatty acids are
-  half charged at pond pH): do the daughters repel and stay apart?
+- **Charged heads (2026-11-08 to 11-10):** real fatty acids are half charged at
+  pond pH, so we charged half the heads (3 seeds vs 3 neutral, 400k each). Charged
+  daughters keep a thin water layer between their walls; neutral ones press wall
+  to wall. They still came back together.
+- **Plot twist: the fusion was our box.** Tracking the two daughters showed
+  they never drifted back together. The current runs in bands: one daughter
+  rides the band going left, the other the band going right, and they keep
+  separating. But our world is a periodic box (leave one side, come in the
+  other, like Pac-Man), so after half a box they meet again from behind. In a
+  real pond they would just drift apart. Good on-camera lesson: check if a
+  result comes from nature or from the simulation's walls. (`drift.png` shows it:
+  every curve climbs to 40 = half the box, then falls.)
+- **So:** a gentle current divides a fed vesicle and carries the daughters
+  apart, each keeping some of the parent's sugar. Opening and resealing again
+  and again loses contents (up to half the sugar by 400k).
 - **Footage:** `e15_o0.85_f200_sh0.1_s0.mp4` (tears), `e15b_*.mp4`,
   `e15c_box80_osm0.15_x5_sh0.02_s0.mp4`, `e15c_box50_osm0.3_x5_s0.mp4`,
-  **`e15c_sh0.05_s1_400k.mp4` (split + fusion, the key film)**, pictures
-  `runs/e15c/long/check.png` (cut views).
+  **`e15c_sh0.05_s1_400k.mp4` (split + "fusion")**, **`e15d_q0.5_s0.mp4`
+  (charged heads: split, drift apart, meet across the box edge, split again)**,
+  pictures `runs/e15c/long/check.png`, `runs/e15d/check200k.png` (charged vs
+  neutral walls), `runs/e15d/drift.png` (the plot twist).

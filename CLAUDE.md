@@ -226,6 +226,14 @@ energy rules + copying with errors + selection.
   (~300k). Division happens but isn't final; ~15% of start sugar leaked by 400k.
   `experiments/e15_check.py` = the pocket/layering/sugar check.
 
+- (2026-11-10) e15d (`runs/e15d/`, 400k, `--charged 0.5` x 3 seeds vs neutral x 3):
+  the "fusion" is a periodic-box artefact. Daughters ride opposite bands of the sin
+  current and move apart to half the box (~40), then meet again across the wrap
+  (`runs/e15d/drift.png`). In an open pond they'd stay apart. Charge: water layer
+  between charged daughters' walls (neutral: wall to wall), splits later (93-118k vs
+  82-88k), merges later; weak effect. Every run: split, merge, split again. Sugar loss
+  at 400k 39-98/173 (opening/resealing). e15_check counts fa_head as head now.
+
 ## Next steps (user's choice; ask before starting a big one)
 
 1. (done) e04 vesicles confirmed: real but tiny and short-lived.

@@ -23,7 +23,7 @@ from alife.chem.analysis import cluster_labels   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
 from alife.chem.world import TAILS, World   # noqa: E402
 
-SUGAR, HEAD = INDEX["sugar"], INDEX["head"]
+SUGAR, HEADS = INDEX["sugar"], [INDEX["head"], INDEX["fa_head"]]
 
 
 def load(f, n_lipids, radius):
@@ -101,7 +101,7 @@ def line(w, a, b):
 def layers(w, a, b):
     _, D, t, perp = line(w, a, b)
     r = np.linalg.norm(perp, axis=1)
-    tail, head, sug = np.isin(w.type, TAILS), w.type == HEAD, w.type == SUGAR
+    tail, head, sug = np.isin(w.type, TAILS), np.isin(w.type, HEADS), w.type == SUGAR
     s = ""
     for x in np.arange(0, D, 0.5):
         sl = (np.abs(t - x) < 0.25) & (r < 3)
@@ -119,7 +119,7 @@ def picture(ax, w, ps, title):
     v = np.cross(e, u)
     cut = np.abs(perp @ v) < 1.2
     y = perp @ u
-    for m, col, sz in ((tail, "#EF9F27", 6), (w.type == HEAD, "#D85A30", 8),
+    for m, col, sz in ((tail, "#EF9F27", 6), (np.isin(w.type, HEADS), "#D85A30", 8),
                        ((w.type == SUGAR) & ~w.start_sugar, "#BBBBBB", 6), (w.start_sugar, "#2A6FB0", 12)):
         ax.scatter(t[cut & m] - D / 2, y[cut & m], s=sz, c=col)
     ax.set_xlim(-30, 30), ax.set_ylim(-30, 30), ax.set_aspect("equal")

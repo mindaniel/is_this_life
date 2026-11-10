@@ -589,7 +589,7 @@ pocket, head/tail layering between pockets, a cut picture).
 |---|---|
 | 0-85k | stretches (shape 1 -> 3.8), water 1530 -> ~440 |
 | ~88k | pinches into two sealed sacs side by side, each with start sugar |
-| 88-225k | two sacs; they slowly drift back together (24 -> 13 apart) |
+| 88-225k | two sacs; they drift apart to half the box, then come back round the periodic box (24 -> 13 apart; see e15d below) |
 | ~225-235k | the walls between them thin to one bilayer and the sacs **fuse** back into one (one pocket ~370-670) |
 | 235-295k | one vesicle again, keeps growing on food (wall 3100 -> 3300) |
 | ~300k-400k | stretches again (shape ~6) and splits again: a long tube with 2-3 sealed rooms (249 + 102 at the end) |
@@ -601,4 +601,43 @@ pocket, head/tail layering between pockets, a cut picture).
   26 at 400k (~15%); the rest stay in the sacs.
 - What would keep daughters apart, in the real world: stronger flow that
   carries them away, charged fatty-acid heads that repel (our lipids are
-  neutral), or simply a bigger, emptier pond. Not tried yet.
+  neutral), or simply a bigger, emptier pond. Tried below: the "fusion" was the box.
+
+#### Charged fatty-acid heads, and why the daughters "fused" (`runs/e15d/`)
+
+Same recipe (current 0.05, 400k steps), half of the short-tail heads charged
+COO- (`--charged 0.5`: fatty acids at pond pH near their pKa; counter-ions
+implicit through Debye screening, a shortcut). 3 charged seeds vs 3 neutral
+(seeds 0, 2 here + seed 1 = `runs/e15c/long`).
+
+| | first split | merge back | second split | pockets at 400k |
+|---|---|---|---|---|
+| charged s0 | 104k | 237k | 327k | 2 (218 + 113) |
+| charged s1 | 93k | 220k (also briefly 139-163k) | 258k | 2 (164 + 81) |
+| charged s2 | 118k | 239k | 338k | 1 (merged again 375k) |
+| neutral s0 | 82k | 206k | 283k | 1 (merged again 348k) |
+| neutral s1 | 85k | 233k | 305k | 2 (249 + 102) |
+| neutral s2 | 88k | 209k | 292k | 2 (288 + 85; merged 349k, split 388k) |
+
+- **The merge is a box artefact, not real fusion.** The vesicle splits across
+  the plane where the current is zero; the two daughters sit in opposite bands
+  (z ~44 flows -x, z ~36 flows +x) and keep moving apart (~0.15-0.2 per 1000 steps
+  each, about the water speed at their depth). At half the box (distance ~40)
+  they are as far apart as the periodic box allows; from then on they approach
+  *from the other side* and bump into each other (`runs/e15d/drift.png`). In an
+  open pond the bands don't wrap round: the daughters would stay apart.
+- Charge does what it should, weakly: at 200k charged daughters have a water
+  layer between their walls (layering `TTTH sss THTT`), neutral ones are
+  pressed wall to wall (`check200k.png`). The charged pairs merge later
+  (220-239k vs 206-233k), partly because they split later, but they merge
+  too once the box pushes them together.
+- Charged vesicles split a bit later (93-118k vs 82-88k): likely the repelling heads
+  spread the wall, so it takes more food to make a thread (not checked).
+- All daughters stay in one lipid cluster (a thin tether or touching tails
+  somewhere), even when ~40 apart.
+- Leak: by 400k, after a merge and a second split, 39-98 of 173 start sugar
+  beads are far out (beyond 20 of any pocket). Opening and resealing loses
+  contents; one clean split loses little (~5-18 at 200k).
+- Next, if wanted: a box long in x only (needs a non-cubic box), or stop the
+  current once split. Not needed for the stage 2 story: division by a gentle
+  current works, and the daughters are carried apart.
