@@ -689,3 +689,33 @@ its neighbour shrinks).
   apart, tested), `chains=(STAIL,)` (only fatty acids join). e16 now logs `A_in`,
   `B_in` (share of start contents still sealed; ~0.8 = fully sealed, since some sit
   in wall voxels). Rerun with `--fa-only --length 1.2`, 3 seeds x food/no food.
+
+### Fixed rerun (200k, `--p-join 0.02 --fa-only --length 1.2`, 3 seeds x food/no food)
+
+- A stays round and sealed in 6/6 (A_in 0.72-0.80 at 200k, same as B). 320-350 two-chain
+  lipids without food, ~420 fed. They gather into patches that span the whole wall
+  (film), about half in the outer leaflet (they flip; real two-chain lipids hardly do).
+- No food: walls stay equal (A - B within +-10 chains, like the controls).
+- Fed: **A ends behind B in 3/3** (2696-2722 vs 2747-2791 chains, -41 to -69); controls
+  -3 / +10 / +119. Catalyst gives no advantage, a small disadvantage (`runs/e16/fix_result.png`).
+- Why: nothing pulls lipid between vesicles; in the lab it comes from fatty acids hopping
+  on and off and two-chain lipids holding them tighter (lower off-rate). e16 now logs
+  `A_fa/B_fa` (single fatty acids in each wall) and `A_left/B_left` (left since last row,
+  checked every 50 steps). Short tests (30k, p_join 0.2, seed 0), leaving per fatty acid
+  per 1000 steps, catalyst wall / plain wall:
+
+  | stail oiliness | A | B | A/B | loose lipids |
+  |---|---|---|---|---|
+  | 0.85 (default) | 1.6% | 1.4% | 1.15 | ~11 |
+  | 0.75 | 6.3% | 4.2% | 1.50 | ~38 |
+  | 0.70 | 11.7% | 8.2% | 1.42 | ~76 |
+  | 0.65 | 21% | 14% | 1.46 | ~138 (B starts to leak) |
+
+  Split by leaflet (0.7): A inner 16%, B inner 7.6%; outer 9.5% vs 8.5%. The extra
+  leaving is from the few fatty acids left in A's inner leaflet between the patches, into
+  A's own lumen (not lost). The outer leaflet, which sets gain/loss, is about equal.
+  Packing check at 200k (order = |cos| of chain vs radius): joined chains as ordered as
+  fatty acids (0.72/0.82 inner/outer vs 0.74/0.83), pair angle median 34 deg. So in this
+  model two-chain lipids neither loosen nor tighten their neighbours: the lab effect
+  (phospholipid orders the membrane, fatty acids bind tighter) is missing from the beads.
+

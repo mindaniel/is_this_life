@@ -151,7 +151,7 @@ Running themes to come back to on camera:
   pictures `runs/e15c/long/check.png`, `runs/e15d/check200k.png` (charged vs
   neutral walls), `runs/e15d/drift.png` (the plot twist).
 
-## Ep 12. A catalyst inside: can contents decide who grows? (2026-11-10, running)
+## Ep 12. A catalyst inside: can contents decide who grows? (2026-11-10/11)
 
 - **Question:** so far every bag is the same; what's inside doesn't matter. For
   evolution it must. Lab result to test (Budin & Szostak 2011, Adamala & Szostak
@@ -174,6 +174,19 @@ Running themes to come back to on camera:
   normal spacing; only fatty acids join), checked old runs still replay exactly,
   rerunning. Good on-camera moment: the frame where the green catalyst beads
   drift out into the open water (`e16_cats20_s0.mp4`, ~80k steps).
+- **Second try: healthy, but no winner.** With the fix the catalyst bag stays round and
+  sealed in all 6 runs and makes ~350-420 two-chain lipids. They gather into purple patches
+  across the wall. But when both bags are fed, the catalyst bag ends up slightly *behind*
+  (3 of 3 seeds), while the plain-vs-plain controls go either way (`fix_result.png`).
+- **Why (the user's point):** nothing pulls lipid from one bag to the other. In the lab
+  it's bookkeeping: fatty acids hop on and off walls at random, and two-chain lipids make a
+  wall hold its fatty acids tighter, so that wall loses fewer than it gains. We counted
+  hops: ours are rare (1-2% per 1000 steps; less oily fatty acids hop up to 10x more), and
+  the two-chain lipids don't hold neighbours tighter. The extra hopping in the catalyst
+  bag is from its inner layer into its own inside water (not lost). The real effect comes
+  from two-chain lipids making the wall more ordered; our simple beads don't have that.
+  Good on-camera moment: an honest null result, and finding which piece of physics is
+  missing instead of forcing the answer.
 - **Same day:** the long-box rerun of Ep 11 (world twice as long, so daughters can
   drift apart without wrapping round) is running.
 - **Viewer ideas for later (from the user):** "ports" in the wall that light or heat
@@ -181,4 +194,5 @@ Running themes to come back to on camera:
   reactions that give off heat or gas and change what happens next. On the
   roadmap: fuel -> light-driven charge pump -> gated channels.
 - **Footage:** `e16_cats20_s0.mp4` (first try: the bag collapses and leaks);
-  when done: `e16fix_cats20_s0.mp4` (fixed), `e15e_long_q0.5_s0.mp4`.
+  `e16fix_cats20_s0.mp4` (fixed: stays sealed, purple patches grow), `runs/e16/fix_result.png`
+  (wall A minus wall B, catalyst vs control); when done: `e15e_long_q0.5_s0.mp4`.

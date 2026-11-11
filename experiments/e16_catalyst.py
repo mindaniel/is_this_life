@@ -12,7 +12,9 @@ up loose ones; its neighbour shrinks. Nothing is coded to make A grow.
 Logged every --every steps, for A and B (the lipid cluster lining each one's
 inner beads: the sugar and catalyst/extra sugar put inside at the start): fatty-acid chains in the wall,
 two-chain lipids in it, share of its inner beads still sealed in a pocket (A_in, B_in),
-sealed pockets; loose lipids; joins so far.
+sealed pockets; loose lipids; joins so far. A_fa/B_fa: single-chain fatty acids in the wall;
+A_left/B_left: how many left it since the last row (Hops: checked every 50 steps, so a fatty
+acid that leaves and comes back between two checks is missed).
 
     python experiments/e16_catalyst.py --steps 200000 --video runs/video/e16_s0.mp4
     python experiments/e16_catalyst.py --cats 0      # control: no catalyst anywhere
@@ -35,7 +37,7 @@ from alife.chem.world import STAIL, TAIL, TAILS, World   # noqa: E402
 from e15_split3d import feed, mixed_vesicle, offset, scatter_fast, shear_flow   # noqa: E402
 
 FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "A_in", "B_in", "same_cluster", "pockets", "volumes",
-          "loose", "joins", "added"]
+          "loose", "joins", "added", "A_fa", "B_fa", "A_left", "B_left"]
 HEADS = (INDEX["head"], INDEX["fa_head"])
 
 
@@ -73,6 +75,38 @@ def wall_of(w, markers, lab, lipid_beads):
     return int(np.bincount(lab[w.mol[lipid_beads][k]]).argmax())
 
 
+def single_fa(w, rx):
+    """Per molecule: a fatty acid (short tail) not joined into a two-chain lipid."""
+    fa = np.zeros(w.n_mol, bool)
+    fa[w.mol[w.type == STAIL]] = True
+    fa[w.mol[w.bonds[rx.head_bonds(w)][:, 0]]] = False
+    return fa
+
+
+class Hops:
+    """Counts fatty acids leaving A's and B's wall: in the wall at one check, still a single fatty
+    acid but out of that wall at the next. Analysis only (draws no random numbers)."""
+
+    def __init__(self):
+        self.prev, self.left = None, [0, 0]
+
+    def check(self, w, rx):
+        lab = cluster_labels(w)
+        lipid_beads = np.flatnonzero(np.isin(w.mol, np.unique(w.mol[np.isin(w.type, TAILS)])))
+        fa = single_fa(w, rx)
+        now = [fa & (lab == wall_of(w, m, lab, lipid_beads)) for m in w.markers]
+        if self.prev is not None:
+            for k in range(2):
+                was = np.zeros(w.n_mol, bool)
+                was[:len(self.prev[k])] = self.prev[k]
+                self.left[k] += int((was & fa & ~now[k]).sum())
+        self.prev = now
+
+    def take(self):
+        out, self.left = self.left, [0, 0]
+        return out
+
+
 def measure(w, rx):
     lab = cluster_labels(w)
     tails = np.isin(w.type, TAILS)
@@ -97,6 +131,9 @@ def measure(w, rx):
     row["loose"] = int((size[lab[lipids]] == 1).sum())
     row["joins"] = rx.joins - rx.breaks
     row["added"] = w.n_mol - w.n_start
+    fa = single_fa(w, rx)
+    for k, c in walls.items():
+        row[f"{k}_fa"] = int((fa & (lab == c)).sum())
     return row
 
 
@@ -193,13 +230,17 @@ def main():
     writer = csv.DictWriter(log, FIELDS)
     writer.writeheader()
     t0 = time.time()
+    hops = Hops()
+    hops.check(w, rx)
     while w.t < args.steps:
         for _ in range(args.every // rx.every):
             w.step(rx.every)
             rx.react(w)
             if args.feed and w.t % args.feed == 0:
                 feed(w, args.batch, 0, clear=1.0, charged=args.charged)
+            hops.check(w, rx)
         row = measure(w, rx)
+        row["A_left"], row["B_left"] = hops.take()
         writer.writerow(row)
         log.flush()
         if film:

@@ -247,6 +247,14 @@ energy rules + copying with errors + selection.
   (`add_bond(i, j, r0)`, `World.rest`), `LipidJoin(length=1.2, chains=(STAIL,))`, e16
   `--length 1.2 --fa-only`, logs A_in/B_in. Rerun (6 runs, `e16fix_*` logs) started.
 
+- (2026-11-11) e16 fixed rerun: A stays sealed 6/6, but no win: fed A ends 41-69 chains
+  behind B (3/3; controls -3..+119). Two-chain lipids form wall-spanning patches, flip to the
+  outer leaflet. e16 logs A_fa/B_fa and A_left/B_left (fatty acids leaving each wall). Leaving
+  rises with lower stail oiliness (0.85: 1.4%/1000 steps, 0.7: 8%, 0.65 leaks); A's extra
+  leaving comes from its inner leaflet (into its own lumen), outer about equal. Beads lack
+  the real effect (two-chain lipids order the wall and hold fatty acids tighter). Scratch
+  scripts: leaflet_hops.py (per-leaflet leaving), pack.py (chain order per leaflet).
+
 ## Next steps (user's choice; ask before starting a big one)
 
 1. (done) e04 vesicles confirmed: real but tiny and short-lived.
