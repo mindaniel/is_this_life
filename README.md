@@ -657,3 +657,35 @@ implicit through Debye screening, a shortcut). 3 charged seeds vs 3 neutral
 - Next, if wanted: a box long in x only (needs a non-cubic box), or stop the
   current once split. Not needed for the stage 2 story: division by a gentle
   current works, and the daughters are carried apart.
+
+## A catalyst inside (e16)
+
+Two vesicles side by side in a long box (80 x 48 x 48), half fatty-acid walls,
+sugar inside and out. A holds 20 catalyst beads ("cat"), B 20 extra sugar beads.
+The catalyst joins two fatty acids whose heads touch into one two-chain lipid
+(`reactions.LipidJoin`, no fuel yet: flagged). Lab result to compare: Budin &
+Szostak 2011, Adamala & Szostak 2013 (the vesicle making two-chain lipid grows,
+its neighbour shrinks).
+
+### First try (200k steps, 3 seeds x food/no food, `runs/e16/`): artefact
+
+- No catalyst (controls): both vesicles stay sealed, walls equal (~2215 chains; fed
+  ~2750-2830), ~75-80% of start contents still in a pocket at the end (the rest sit
+  in wall voxels or leaked).
+- With catalyst: 800-1000 joins, and **A collapses in every run**. Its pocket shrinks
+  from the first joins (volume 1550 -> 780 by 20k, gone by 60-80k), then all sugar
+  and all catalyst escape (0% inside at 200k; catalysts spread through the box and
+  start joins in B's wall). Fed A ended with *fewer* chains than fed B (2638-2793 vs
+  2793-2821).
+- Cause, measured: a joined head pair sat 0.89 apart (bond rest length 1.0
+  squeezed), ordinary neighbouring heads 1.15. Each join shrinks the inner leaflet,
+  outer lipids flip in and get joined too (747 joined molecules, more than the
+  ~590 inner-leaflet lipids), the crowded inner leaflet buckles inward and the
+  vesicle opens. A real two-chain lipid takes about the room of its two fatty acids,
+  so this is a model artefact. Also, long-tail lipids (already membrane lipids
+  in this model) were being joined into 4-chain lipids.
+- Fix: `World.add_bond(i, j, r0)` (per-bond rest length; old runs replay exactly,
+  forces match finite differences), `LipidJoin(length=1.2)` (pair sits ~1.1-1.15
+  apart, tested), `chains=(STAIL,)` (only fatty acids join). e16 now logs `A_in`,
+  `B_in` (share of start contents still sealed; ~0.8 = fully sealed, since some sit
+  in wall voxels). Rerun with `--fa-only --length 1.2`, 3 seeds x food/no food.

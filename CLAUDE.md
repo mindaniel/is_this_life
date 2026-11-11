@@ -111,7 +111,8 @@ energy rules + copying with errors + selection.
 - `reactions.LipidJoin` + `experiments/e16_catalyst.py`: "cat" bead (end of element
   table) joins two single-chain lipids head to head into a two-chain lipid
   (phospholipid-like); no fuel yet (flagged). e16 = vesicle A with catalysts vs B with
-  as many sugar beads; logs chains / two-chain lipids per wall; film = slice + counts.
+  as many sugar beads; logs chains / two-chain lipids per wall, A_in/B_in; film = slice + counts.
+  Use `--length 1.2 --fa-only` (default bond squeezes joined heads: see status).
 
 ## Rules of thumb (learned the hard way)
 
@@ -239,6 +240,12 @@ energy rules + copying with errors + selection.
   between charged daughters' walls (neutral: wall to wall), splits later (93-118k vs
   82-88k), merges later; weak effect. Every run: split, merge, split again. Sugar loss
   at 400k 39-98/173 (opening/resealing). e15_check counts fa_head as head now.
+
+- (2026-11-11) e16 first try (`runs/e16/`): catalyst vesicle collapsed and lost all
+  contents in 6/6 runs. Artefact: head-head bond (r0 1.0) squeezed pairs to 0.89 vs 1.15
+  between neighbours, so joins shrank the inner leaflet. Fix: per-bond rest length
+  (`add_bond(i, j, r0)`, `World.rest`), `LipidJoin(length=1.2, chains=(STAIL,))`, e16
+  `--length 1.2 --fa-only`, logs A_in/B_in. Rerun (6 runs, `e16fix_*` logs) started.
 
 ## Next steps (user's choice; ask before starting a big one)
 

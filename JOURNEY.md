@@ -162,10 +162,23 @@ Running themes to come back to on camera:
   plain sugar beads (same fullness, no chemistry). Nothing says "grow".
 - **Shortcut (said out loud):** the joining costs no energy yet. Next: a fuel
   molecule that gets used up.
+- **First try (2026-11-11): the catalyst bag killed itself.** In all 6 runs the
+  catalyst bag shrank, flattened and opened: 0% of its sugar and catalyst still
+  inside at the end, while the plain bag kept its contents. Was it chemistry? No,
+  the model: each join pulled two lipid heads to 0.89 apart while ordinary neighbours
+  sit 1.15 apart, so every join shrank the inner wall a bit. Lipids from the outer
+  layer flipped in to fill the gap, got joined too, and the inner wall ended up
+  crowded and buckled inward. A real two-chain lipid takes about the room of its two fatty
+  acids. Also, long-tail lipids (already "finished" membrane lipids in our model)
+  were being joined into unrealistic 4-chain ones. Fixed both (joined pair keeps
+  normal spacing; only fatty acids join), checked old runs still replay exactly,
+  rerunning. Good on-camera moment: the frame where the green catalyst beads
+  drift out into the open water (`e16_cats20_s0.mp4`, ~80k steps).
 - **Same day:** the long-box rerun of Ep 11 (world twice as long, so daughters can
   drift apart without wrapping round) is running.
 - **Viewer ideas for later (from the user):** "ports" in the wall that light or heat
   open so charge can flow (real: light-, heat-, stretch-gated channels), and
   reactions that give off heat or gas and change what happens next. On the
   roadmap: fuel -> light-driven charge pump -> gated channels.
-- **Footage (when done):** `e16_cats20_s0.mp4`, `e15e_long_q0.5_s0.mp4`.
+- **Footage:** `e16_cats20_s0.mp4` (first try: the bag collapses and leaks);
+  when done: `e16fix_cats20_s0.mp4` (fixed), `e15e_long_q0.5_s0.mp4`.
