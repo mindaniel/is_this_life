@@ -11,7 +11,8 @@ up loose ones; its neighbour shrinks. Nothing is coded to make A grow.
 
 Logged every --every steps, for A and B (the lipid cluster lining each one's
 inner beads: the sugar and catalyst/extra sugar put inside at the start): fatty-acid chains in the wall,
-two-chain lipids in it, sealed pockets; loose lipids; joins so far.
+two-chain lipids in it, share of its inner beads still sealed in a pocket (A_in, B_in),
+sealed pockets; loose lipids; joins so far.
 
     python experiments/e16_catalyst.py --steps 200000 --video runs/video/e16_s0.mp4
     python experiments/e16_catalyst.py --cats 0      # control: no catalyst anywhere
@@ -30,10 +31,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from alife.chem.analysis import cluster_labels, water_pockets3   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
 from alife.chem.reactions import LipidJoin   # noqa: E402
-from alife.chem.world import TAILS, World   # noqa: E402
+from alife.chem.world import STAIL, TAIL, TAILS, World   # noqa: E402
 from e15_split3d import feed, mixed_vesicle, offset, scatter_fast, shear_flow   # noqa: E402
 
-FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "same_cluster", "pockets", "volumes",
+FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "A_in", "B_in", "same_cluster", "pockets", "volumes",
           "loose", "joins", "added"]
 HEADS = (INDEX["head"], INDEX["fa_head"])
 
@@ -88,7 +89,9 @@ def measure(w, rx):
         row[f"{k}_chains"] = int(mine.sum())                         # one head per fatty-acid chain
         row[f"{k}_double"] = int(np.unique(w.mol[mine & double[w.mol]]).size)
     row["same_cluster"] = int(walls["A"] == walls["B"])
-    vol, _ = water_pockets3(w)
+    vol, _, sealed = water_pockets3(w, beads=np.concatenate(w.markers))
+    row["A_in"] = round(float(sealed[:len(w.markers[0])].mean()), 3)
+    row["B_in"] = round(float(sealed[len(w.markers[0]):].mean()), 3)
     row["pockets"] = len(vol)
     row["volumes"] = " ".join(str(int(v)) for v in sorted(vol, reverse=True))
     row["loose"] = int((size[lab[lipids]] == 1).sum())
@@ -160,6 +163,9 @@ def main():
     p.add_argument("--p-join", type=float, default=0.2, help="join chance per check with a catalyst near")
     p.add_argument("--no-cat", type=float, default=0.0, help="join chance factor without a catalyst")
     p.add_argument("--p-break", type=float, default=0.0, help="chance per check that a two-chain lipid splits")
+    p.add_argument("--fa-only", action="store_true", help="only fatty acids (short tails) join, not long-tail lipids")
+    p.add_argument("--length", type=float, default=None,
+                   help="rest length of the head-head bond (default bond 1.0 squeezes the pair to ~0.89)")
     p.add_argument("--feed", type=int, default=0, help="add --batch loose fatty acids every N steps (0 = never)")
     p.add_argument("--batch", type=int, default=1)
     p.add_argument("--shear", type=float, default=0.0)
@@ -173,10 +179,12 @@ def main():
     args = p.parse_args()
 
     name = (f"cats{args.cats}_p{args.p_join:g}_nc{args.no_cat:g}_br{args.p_break:g}_mix{args.mix:g}"
-            f"_q{args.charged:g}_f{args.feed}x{args.batch}_sh{args.shear:g}_s{args.seed}")
+            f"_q{args.charged:g}_f{args.feed}x{args.batch}_sh{args.shear:g}" + ("_fa" if args.fa_only else "")
+            + (f"_len{args.length:g}" if args.length else "") + f"_s{args.seed}")
     os.makedirs(args.out, exist_ok=True)
     w, n = build(args)
-    rx = LipidJoin(p_join=args.p_join, no_cat=args.no_cat, p_break=args.p_break)
+    rx = LipidJoin(p_join=args.p_join, no_cat=args.no_cat, p_break=args.p_break, length=args.length,
+                   chains=(STAIL,) if args.fa_only else (TAIL, STAIL))
     print(f"{name}: {n} lipids, {w.n} beads", flush=True)
     film = None
     if args.video:

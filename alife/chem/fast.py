@@ -101,7 +101,7 @@ def charge_forces(pos, L, pairs, typ, charge, coulomb, debye, cut, F):
 
 @njit(cache=True)
 def spring_forces(pos, L, idx, k, r0, F):
-    """Harmonic springs (bonds and bends)."""
+    """Harmonic springs (bonds and bends). r0: rest length per spring."""
     three = pos.shape[1] == 3
     energy = 0.0
     for p in range(idx.shape[0]):
@@ -115,7 +115,7 @@ def spring_forces(pos, L, idx, k, r0, F):
             dz = pos[j, 2] - pos[i, 2]
             dz -= L[2] * np.rint(dz / L[2])
         dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-        stretch = dist - r0
+        stretch = dist - r0[p]
         s = -k * stretch / max(dist, 1e-9)
         F[j, 0] += s * dx
         F[j, 1] += s * dy

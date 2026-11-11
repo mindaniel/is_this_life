@@ -160,13 +160,14 @@ def summary(world):
     }
 
 
-def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8):
+def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8, beads=None):
     """3D vesicle detector: water fully enclosed by one lipid cluster.
 
     Same idea as water_pockets: voxels near a lipid bead are wall, the
     biggest water region (through the periodic walls) is the open water, and
     any other water region of at least `min_volume` voxels whose wall belongs
     mostly to one cluster is a vesicle's inside. Returns (volumes, centres).
+    beads (bead indices): also return a bool per bead, True if it sits in one of the pockets.
     """
     from scipy import ndimage
 
@@ -177,7 +178,7 @@ def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8):
     has_tail[world.mol[np.isin(world.type, TAILS)]] = True
     lipid = has_tail[world.mol]
     if not lipid.any():
-        return np.array([], dtype=int), []
+        return (np.array([], dtype=int), []) + ((np.zeros(len(beads), bool),) if beads is not None else ())
     idx = (world._wrapped()[lipid] / cell).astype(int) % m
     wall[tuple(idx.T)] = True
     owner[tuple(idx.T)] = cluster_labels(world)[world.mol[lipid]]
@@ -202,7 +203,7 @@ def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8):
     vols = np.bincount(region.ravel(), minlength=n + 1)
     vols[0] = 0
     sea = np.argmax(vols)
-    out, where = [], []
+    out, where, kept = [], [], []
     ring = r + 1
     for k in np.flatnonzero(vols >= min_volume):
         if k == sea:
@@ -213,8 +214,13 @@ def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8):
         walls = owner[border & (owner >= 0)]
         if len(walls) and np.bincount(walls).max() >= one_cluster * len(walls):
             out.append(vols[k])
+            kept.append(k)
             ang = 2 * np.pi * np.argwhere(mask) / m
             mid = np.angle(np.mean(np.exp(1j * ang), axis=0)) % (2 * np.pi)
             where.append(tuple((mid / (2 * np.pi) * m + 0.5) * cell))
     order = np.argsort(out)[::-1]
-    return np.array(out, dtype=int)[order], [where[k] for k in order]
+    res = np.array(out, dtype=int)[order], [where[k] for k in order]
+    if beads is None:
+        return res
+    vox = tuple(((world._wrapped()[beads] / cell).astype(int) % m).T)
+    return res + (np.isin(region[vox], kept),)

@@ -110,6 +110,9 @@ class World:
         # bead types that also push on beads of their own molecule. Lipids are stiff
         # (bends), so they skip that; floppy chains made by reactions (sugars) need it
         self.repel_inside = ()
+        # bonds made by reactions with their own rest length: (i, j) with i < j -> length
+        self.rest = {}
+        self._bond_r0 = None
 
     # ---- building -------------------------------------------------------
     def add_molecule(self, positions, types, bonds=(), bends=(), frozen=False):
@@ -135,9 +138,13 @@ class World:
         self._pairs = None
 
     # ---- reactions: bonds that form and break while running ---------------
-    def add_bond(self, i, j):
-        """Bond beads i and j (a reaction joins them). Their molecules become one."""
+    def add_bond(self, i, j, r0=None):
+        """Bond beads i and j (a reaction joins them). Their molecules become one.
+        r0: rest length of this bond (default rules.bond_r0)."""
         self.bonds = np.vstack([self.bonds, [i, j]])
+        if r0 is not None:
+            self.rest[(min(i, j), max(i, j))] = r0
+        self._bond_r0 = None
         a, b = self.mol[i], self.mol[j]
         if a != b:
             self.mol[self.mol == b] = a
@@ -147,12 +154,24 @@ class World:
         """Remove bond number k. If that cuts a molecule in two, one piece gets a new id."""
         i, j = self.bonds[k]
         self.bonds = np.delete(self.bonds, k, axis=0)
+        self.rest.pop((min(i, j), max(i, j)), None)
+        self._bond_r0 = None
         mine = self.mol == self.mol[j]
         piece = self._reachable(j, mine)
         if not piece[i]:
             self.mol[piece] = self.n_mol
             self.n_mol += 1
         self._pairs = None
+
+    def bond_lengths(self):
+        """Rest length of every bond (rules.bond_r0 unless a reaction gave it its own)."""
+        if self._bond_r0 is None or len(self._bond_r0) != len(self.bonds):
+            r0 = np.full(len(self.bonds), self.rules.bond_r0)
+            if self.rest:
+                for k, (i, j) in enumerate(self.bonds):
+                    r0[k] = self.rest.get((min(i, j), max(i, j)), r0[k])
+            self._bond_r0 = r0
+        return self._bond_r0
 
     def _reachable(self, start, within):
         """Beads connected to `start` by bonds, searching only beads in `within`."""
@@ -284,8 +303,8 @@ class World:
         if cp is not None and len(cp):
             energy += fast.charge_forces(pos, self.box(), cp, self.type, r.charge, r.coulomb, r.debye,
                                          r.charge_cutoff, F)
-        for idx, k, r0 in ((self.bonds, r.bond_k, r.bond_r0),
-                           (self.bends, r.bend_k, r.bend_r0)):
+        for idx, k, r0 in ((self.bonds, r.bond_k, self.bond_lengths()),
+                           (self.bends, r.bend_k, np.full(len(self.bends), r.bend_r0))):
             if len(idx):
                 energy += fast.spring_forces(pos, self.box(), idx, k, r0, F)
         return F, energy
@@ -334,7 +353,7 @@ class World:
             energy += np.sum(qq * (screen / dist - np.exp(-cut / r.debye) / cut))
             self._scatter(F, i, j, (fmag / dist)[:, None] * d)
 
-        for idx, k, r0 in ((self.bonds, r.bond_k, r.bond_r0),
+        for idx, k, r0 in ((self.bonds, r.bond_k, self.bond_lengths()),
                            (self.bends, r.bend_k, r.bend_r0)):
             if not len(idx):
                 continue

@@ -145,21 +145,30 @@ class LipidJoin:
              bead is within `cat_reach` of the pair, p_join * no_cat if not.
       break  each head-head bond breaks with chance p_break (slow hydrolysis).
 
+    `chains`: which tail types count as a joinable chain (STAIL alone = only the
+    fatty acids; the long-tail lipids already stand for finished membrane lipids).
+    `length`: rest length of the new head-head bond. The default bond (1.0) pulls
+    the two heads to ~0.89, closer than neighbours in a leaflet (~1.15): each join
+    shrinks the leaflet a little (a model artefact; a real two-chain lipid takes
+    about the room of its two fatty acids).
+
     Shortcut (flagged): the join uses no fuel. In real chemistry it needs an
     activated building block (glycerol phosphate, ATP-like energy); the catalyst
     only speeds it up. Next step: make a food bead that is used up.
     """
 
-    def __init__(self, every=50, reach=1.3, cat_reach=2.5, p_join=0.2, no_cat=0.0, p_break=0.0):
+    def __init__(self, every=50, reach=1.3, cat_reach=2.5, p_join=0.2, no_cat=0.0, p_break=0.0,
+                 chains=(TAIL, STAIL), length=None):
         self.every, self.reach, self.cat_reach = every, reach, cat_reach
+        self.chains, self.length = chains, length
         self.p_join, self.no_cat, self.p_break = p_join, no_cat, p_break
         self.joins = self.breaks = 0
 
     def single_heads(self, world):
-        """Head beads of lone fatty acids: molecules of one head + one tail chain (short or long)."""
+        """Head beads of lone fatty acids: molecules of one head + one tail chain of a `chains` type."""
         heads = np.isin(world.type, (INDEX["head"], INDEX["fa_head"]))
         n_head = np.bincount(world.mol[heads], minlength=world.n_mol)
-        n_tail = np.bincount(world.mol[np.isin(world.type, (TAIL, STAIL))], minlength=world.n_mol)
+        n_tail = np.bincount(world.mol[np.isin(world.type, self.chains)], minlength=world.n_mol)
         size = np.bincount(world.mol, minlength=world.n_mol)
         lone = (n_head == 1) & (n_tail >= 1) & (size == n_head + n_tail)
         return np.flatnonzero(heads & lone[world.mol])
@@ -195,7 +204,7 @@ class LipidJoin:
             if a in used or b in used:
                 continue
             used.update((a, b))
-            world.add_bond(a, b)
+            world.add_bond(a, b, self.length)
             self.joins += 1
 
     def _break(self, world):
