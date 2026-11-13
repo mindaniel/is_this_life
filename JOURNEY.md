@@ -187,6 +187,13 @@ Running themes to come back to on camera:
   from two-chain lipids making the wall more ordered; our simple beads don't have that.
   Good on-camera moment: an honest null result, and finding which piece of physics is
   missing instead of forcing the answer.
+- **Random oiliness (the user's idea, 2026-11-13):** in nature fatty acids aren't all one
+  length; the chemistry that makes them gives a random mix, short ones commoner. Short ones are
+  less oily. So we gave each new fatty acid 1, 2 or 3 tail beads at random. Within a few
+  thousand steps the walls sorted themselves: short ones fell out into the water (300-600 loose,
+  vs ~11 before), long ones stayed, so the walls end up with longer tails than the mix they
+  started from. Nobody told them to choose. Hopping went up 10-30x, which is what the lab
+  mechanism needs. With mostly short ones (50%) the plain bag opened for a while and resealed.
 - **Same day:** the long-box rerun of Ep 11 (world twice as long, so daughters can
   drift apart without wrapping round) is running.
 - **Viewer ideas for later (from the user):** "ports" in the wall that light or heat

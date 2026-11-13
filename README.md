@@ -719,3 +719,22 @@ its neighbour shrinks).
   model two-chain lipids neither loosen nor tighten their neighbours: the lab effect
   (phospholipid orders the membrane, fatty acids bind tighter) is missing from the beads.
 
+### Random fatty-acid tail lengths (`--fa-lengths`, short tests)
+
+Real prebiotic synthesis makes a random mix of chain lengths, short ones commoner. e16/e15
+`--fa-lengths "1:0.25,2:0.5,3:0.25"` gives each new fatty acid 1-3 tail beads at random (start
+walls and food); without it every fatty acid has 2 and old seeds replay exactly (checked).
+30k steps, p_join 0.2, no food, seed 0; leaving per fatty acid per 1000 steps (after 10k):
+
+| mix (1:2:3 beads) | mean in | wall mean at 30k A / B | leaving A / B | loose | sealed |
+|---|---|---|---|---|---|
+| all 2 (before) | 2.0 | 2 / 2 | 1.6% / 1.4% | ~11 | yes |
+| 25:50:25 | 2.0 | 2.24 / 2.16 | 18% / 19% | ~360 | yes |
+| 50:30:20 | 1.7 | 2.10 / 1.99 | 41% / 44% | ~600 | A yes; B opens 20-25k, reseals |
+
+- Walls sort by themselves: short fatty acids leave, long ones stay, so the wall's mean length
+  climbs above the input mix. Hopping is now 10-30x more common, close to the lab picture.
+- Per fatty acid, A and B now leave at the same rate; A keeps slightly longer ones (why not
+  checked: maybe the catalyst joins short ones more often). Chains at 30k: A +13 / +28 vs B
+  (one seed each, no food: inside the noise).
+

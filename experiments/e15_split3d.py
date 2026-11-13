@@ -46,9 +46,27 @@ def fa_head(w, charged):
     return "fa_head" if charged and w.rng.uniform() < charged else "head"   # no draw at 0: old seeds replay
 
 
-def mixed_vesicle(w, center, radius, mix, charged=0.0, area=1.2):
+def fa_tails(w, lengths):
+    """Tail beads of a new fatty acid: 2, or drawn from `lengths` = (values, weights).
+    Real prebiotic synthesis makes a random mix of chain lengths, short ones commoner."""
+    if lengths is None:
+        return 2   # no draw: old seeds replay
+    values, weights = lengths
+    return int(w.rng.choice(values, p=weights))
+
+
+def parse_lengths(text):
+    """"1:0.3,2:0.4,3:0.3" -> ((1, 2, 3), (0.3, 0.4, 0.3)) (weights normalised); None stays None."""
+    if not text:
+        return None
+    pairs = [tuple(float(x) for x in item.split(":")) for item in text.split(",")]
+    total = sum(p for _, p in pairs)
+    return tuple(int(n) for n, _ in pairs), tuple(p / total for _, p in pairs)
+
+
+def mixed_vesicle(w, center, radius, mix, charged=0.0, area=1.2, lengths=None):
     """vesicle3 with each lipid short-tail ("stail") with chance mix; short-tail heads charged
-    with chance `charged`. Returns the count."""
+    with chance `charged`, tail length from `lengths` (fa_tails). Returns the count."""
     r0 = w.rules.bond_r0
     count = 0
     for side in (1, -1):   # outer leaflet: heads out; inner: heads in
@@ -60,7 +78,8 @@ def mixed_vesicle(w, center, radius, mix, charged=0.0, area=1.2):
         u = np.stack([np.sqrt(1 - z ** 2) * np.cos(phi), np.sqrt(1 - z ** 2) * np.sin(phi), z], 1)
         for d in u:
             if w.rng.uniform() < mix:
-                add_lipid3(w, center + r_head * d, -side * d, 2, head=fa_head(w, charged), tail="stail")
+                head = fa_head(w, charged)
+                add_lipid3(w, center + r_head * d, -side * d, fa_tails(w, lengths), head=head, tail="stail")
             else:
                 add_lipid3(w, center + r_head * d, -side * d, 2)
         count += n
@@ -119,13 +138,15 @@ def biggest(w):
     return mask, c, np.percentile(r, 90)
 
 
-def feed(w, count, near, clear=1.5, charged=0.0, tries=20000):
-    """count loose short-tail lipids at free spots (within `near` outside the vesicle, or anywhere)."""
+def feed(w, count, near, clear=1.5, charged=0.0, tries=20000, lengths=None):
+    """count loose short-tail lipids at free spots (within `near` outside the vesicle, or anywhere),
+    tail length from `lengths` (fa_tails)."""
     r0 = w.rules.bond_r0
     _, c, R = biggest(w) if near else (None, None, None)
     added = 0
     for _ in range(count):
         tree = cKDTree(w._wrapped(), boxsize=w.L)
+        n = fa_tails(w, lengths)
         for _ in range(tries):
             if near:
                 d = w.rng.normal(size=3)
@@ -135,9 +156,9 @@ def feed(w, count, near, clear=1.5, charged=0.0, tries=20000):
                 p = w.rng.uniform(0, w.L, 3)
             a = w.rng.normal(size=3)
             a /= np.linalg.norm(a)
-            beads = (p + np.outer(np.arange(3) * r0, a)) % w.L
+            beads = (p + np.outer(np.arange(n + 1) * r0, a)) % w.L
             if tree.query(beads)[0].min() > clear:
-                add_lipid3(w, p, a, 2, head=fa_head(w, charged), tail="stail")
+                add_lipid3(w, p, a, n, head=fa_head(w, charged), tail="stail")
                 added += 1
                 break
     return added

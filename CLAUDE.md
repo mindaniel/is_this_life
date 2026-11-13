@@ -255,6 +255,11 @@ energy rules + copying with errors + selection.
   the real effect (two-chain lipids order the wall and hold fatty acids tighter). Scratch
   scripts: leaflet_hops.py (per-leaflet leaving), pack.py (chain order per leaflet).
 
+- (2026-11-13) `--fa-lengths "1:w,2:w,3:w"` (e15 `fa_tails`/`parse_lengths`, e16 flag, logs
+  A_len/B_len): random fatty-acid tail lengths. 30k tests: walls keep the long ones (mean 2.0 in ->
+  2.2 in wall), leaving 18% (25:50:25) / 41% (50:30:20, B opens once) per 1000 steps vs 1.5% before;
+  A and B leave alike. Next: 200k catalyst rerun with the 25:50:25 mix (ask first).
+
 ## Next steps (user's choice; ask before starting a big one)
 
 1. (done) e04 vesicles confirmed: real but tiny and short-lived.

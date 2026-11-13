@@ -13,6 +13,7 @@ Logged every --every steps, for A and B (the lipid cluster lining each one's
 inner beads: the sugar and catalyst/extra sugar put inside at the start): fatty-acid chains in the wall,
 two-chain lipids in it, share of its inner beads still sealed in a pocket (A_in, B_in),
 sealed pockets; loose lipids; joins so far. A_fa/B_fa: single-chain fatty acids in the wall;
+A_len/B_len: their mean tail length (beads; with --fa-lengths).
 A_left/B_left: how many left it since the last row (Hops: checked every 50 steps, so a fatty
 acid that leaves and comes back between two checks is missed).
 
@@ -34,10 +35,10 @@ from alife.chem.analysis import cluster_labels, water_pockets3   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
 from alife.chem.reactions import LipidJoin   # noqa: E402
 from alife.chem.world import STAIL, TAIL, TAILS, World   # noqa: E402
-from e15_split3d import feed, mixed_vesicle, offset, scatter_fast, shear_flow   # noqa: E402
+from e15_split3d import feed, mixed_vesicle, offset, parse_lengths, scatter_fast, shear_flow   # noqa: E402
 
 FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "A_in", "B_in", "same_cluster", "pockets", "volumes",
-          "loose", "joins", "added", "A_fa", "B_fa", "A_left", "B_left"]
+          "loose", "joins", "added", "A_fa", "B_fa", "A_len", "B_len", "A_left", "B_left"]
 HEADS = (INDEX["head"], INDEX["fa_head"])
 
 
@@ -47,7 +48,7 @@ def build(args):
     w.rules.set_oily("stail", args.short_oily)
     L = np.array(box)
     centres = [np.array([L[0] / 4, L[1] / 2, L[2] / 2]), np.array([3 * L[0] / 4, L[1] / 2, L[2] / 2])]
-    n = sum(mixed_vesicle(w, c, args.radius, args.mix, args.charged) for c in centres)
+    n = sum(mixed_vesicle(w, c, args.radius, args.mix, args.charged, lengths=args.lengths) for c in centres)
     r_in, outer = args.radius - 3.5, args.radius + 2.5
     inside = [lambda p, c=c: np.linalg.norm(offset(w, p, c), axis=1) < r_in for c in centres]
     n_in = int(round(args.osm * 4 / 3 * np.pi * r_in ** 3))
@@ -132,8 +133,11 @@ def measure(w, rx):
     row["joins"] = rx.joins - rx.breaks
     row["added"] = w.n_mol - w.n_start
     fa = single_fa(w, rx)
+    n_tail = np.bincount(w.mol[w.type == STAIL], minlength=w.n_mol)
     for k, c in walls.items():
-        row[f"{k}_fa"] = int((fa & (lab == c)).sum())
+        mine = fa & (lab == c)
+        row[f"{k}_fa"] = int(mine.sum())
+        row[f"{k}_len"] = round(float(n_tail[mine].mean()), 3) if mine.any() else 0
     return row
 
 
@@ -203,6 +207,8 @@ def main():
     p.add_argument("--fa-only", action="store_true", help="only fatty acids (short tails) join, not long-tail lipids")
     p.add_argument("--length", type=float, default=None,
                    help="rest length of the head-head bond (default bond 1.0 squeezes the pair to ~0.89)")
+    p.add_argument("--fa-lengths", default=None,
+                   help='random fatty-acid tail lengths, beads:weight, e.g. "1:0.3,2:0.4,3:0.3" (default: all 2)')
     p.add_argument("--feed", type=int, default=0, help="add --batch loose fatty acids every N steps (0 = never)")
     p.add_argument("--batch", type=int, default=1)
     p.add_argument("--shear", type=float, default=0.0)
@@ -214,10 +220,12 @@ def main():
     p.add_argument("--video", default=None)
     p.add_argument("--fps", type=int, default=6)
     args = p.parse_args()
+    args.lengths = parse_lengths(args.fa_lengths)
 
     name = (f"cats{args.cats}_p{args.p_join:g}_nc{args.no_cat:g}_br{args.p_break:g}_mix{args.mix:g}"
             f"_q{args.charged:g}_f{args.feed}x{args.batch}_sh{args.shear:g}" + ("_fa" if args.fa_only else "")
-            + (f"_len{args.length:g}" if args.length else "") + f"_s{args.seed}")
+            + (f"_len{args.length:g}" if args.length else "")
+            + ("_mix" + "-".join(map(str, args.lengths[0])) if args.lengths else "") + f"_s{args.seed}")
     os.makedirs(args.out, exist_ok=True)
     w, n = build(args)
     rx = LipidJoin(p_join=args.p_join, no_cat=args.no_cat, p_break=args.p_break, length=args.length,
@@ -237,7 +245,7 @@ def main():
             w.step(rx.every)
             rx.react(w)
             if args.feed and w.t % args.feed == 0:
-                feed(w, args.batch, 0, clear=1.0, charged=args.charged)
+                feed(w, args.batch, 0, clear=1.0, charged=args.charged, lengths=args.lengths)
             hops.check(w, rx)
         row = measure(w, rx)
         row["A_left"], row["B_left"] = hops.take()
