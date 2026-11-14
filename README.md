@@ -658,6 +658,26 @@ implicit through Debye screening, a shortcut). 3 charged seeds vs 3 neutral
   current once split. Not needed for the stage 2 story: division by a gentle
   current works, and the daughters are carried apart.
 
+#### Long box: do the daughters separate? (`runs/e15e/`, box 160 x 48 x 48, 300k)
+
+Same recipe as e15d (current 0.05, food 5 per 200 steps), box twice as long in x
+(`--box-x 160`), 3 seeds charged (`--charged 0.5`) + 3 neutral.
+
+- Split at ~75-100k as before. The two sacs then ride opposite current bands and
+  move apart steadily (24 -> 60-80 by 300k), no merging back.
+- **They never fully let go.** A thin oily tether joins them in 6/6 runs. It thins
+  from ~70 tail beads per unit length to ~14 (a thread a few lipids thick) by
+  130-210k, then holds at ~14 while it stretches to 50-80 long (`neck.png`;
+  cut `cut_s2_300k.png`). One lipid cluster to the end.
+- Sacs reach ~80 apart (half the box) in 3 runs by ~240-300k, so the wrap would
+  bring them back again later. Measured "neck 0" past that point is the short way
+  round (empty water), not a break (wall profile along x checked).
+- 2/6 end with one sealed sac (the other lost its water); 4/6 keep two. Start sugar
+  in pockets at 300k: 18-94 of 173.
+- Lab parallel: Zhu & Szostak's daughter vesicles also stay strung together on
+  thin threads; gentle shaking snaps them. Here a steady current only stretches
+  the thread. Scripts: `runs/e15e/neck.py`, `neck_plot.py`.
+
 ## A catalyst inside (e16)
 
 Two vesicles side by side in a long box (80 x 48 x 48), half fatty-acid walls,

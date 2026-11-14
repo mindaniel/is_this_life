@@ -144,6 +144,12 @@ Running themes to come back to on camera:
 - **So:** a gentle current divides a fed vesicle and carries the daughters
   apart, each keeping some of the parent's sugar. Opening and resealing again
   and again loses contents (up to half the sugar by 400k).
+- **Long box (2026-11-14):** world twice as long so the daughters can't come
+  round the back. They split and pull apart for 200k steps, but stay tied by a
+  thin oily thread (a few lipids thick) that stretches and never snaps, in all 6
+  runs. Real vesicles in the lab do the same; a shake breaks the thread. So:
+  division almost, a "pair on a string". Footage `e15e_long_q0.5_s0.mp4`,
+  `runs/e15e/neck.png` (distance up, thread thins to a floor), `cut_s2_300k.png`.
 - **Footage:** `e15_o0.85_f200_sh0.1_s0.mp4` (tears), `e15b_*.mp4`,
   `e15c_box80_osm0.15_x5_sh0.02_s0.mp4`, `e15c_box50_osm0.3_x5_s0.mp4`,
   **`e15c_sh0.05_s1_400k.mp4` (split + "fusion")**, **`e15d_q0.5_s0.mp4`
@@ -202,4 +208,4 @@ Running themes to come back to on camera:
   roadmap: fuel -> light-driven charge pump -> gated channels.
 - **Footage:** `e16_cats20_s0.mp4` (first try: the bag collapses and leaks);
   `e16fix_cats20_s0.mp4` (fixed: stays sealed, purple patches grow), `runs/e16/fix_result.png`
-  (wall A minus wall B, catalyst vs control); when done: `e15e_long_q0.5_s0.mp4`.
+  (wall A minus wall B, catalyst vs control).

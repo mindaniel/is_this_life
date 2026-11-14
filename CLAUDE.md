@@ -240,7 +240,7 @@ energy rules + copying with errors + selection.
   between charged daughters' walls (neutral: wall to wall), splits later (93-118k vs
   82-88k), merges later; weak effect. Every run: split, merge, split again. Sugar loss
   at 400k 39-98/173 (opening/resealing). e15_check counts fa_head as head now.
-
+
 - (2026-11-11) e16 first try (`runs/e16/`): catalyst vesicle collapsed and lost all
   contents in 6/6 runs. Artefact: head-head bond (r0 1.0) squeezed pairs to 0.89 vs 1.15
   between neighbours, so joins shrank the inner leaflet. Fix: per-bond rest length
@@ -258,7 +258,14 @@ energy rules + copying with errors + selection.
 - (2026-11-13) `--fa-lengths "1:w,2:w,3:w"` (e15 `fa_tails`/`parse_lengths`, e16 flag, logs
   A_len/B_len): random fatty-acid tail lengths. 30k tests: walls keep the long ones (mean 2.0 in ->
   2.2 in wall), leaving 18% (25:50:25) / 41% (50:30:20, B opens once) per 1000 steps vs 1.5% before;
-  A and B leave alike. Next: 200k catalyst rerun with the 25:50:25 mix (ask first).
+  A and B leave alike. 200k catalyst rerun with the 25:50:25 mix started 2026-11-13
+  (12 runs, `e16mix_*` logs, CSVs `*_mix1-2-3_*`).
+
+- (2026-11-14) e15e long box (x 160, 300k, 3 charged + 3 neutral): split at ~75-100k, sacs
+  move apart (to 60-80) without merging, but stay joined by a thin tether in 6/6 (thins to
+  ~14 tail beads per unit length, then holds; never snaps). 2/6 end with one sealed sac.
+  `runs/e15e/neck.png`. Neck measured along the min-image line: past half the box it reads
+  the empty side (check the wall profile along x instead).
 
 ## Next steps (user's choice; ask before starting a big one)
 
