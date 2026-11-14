@@ -260,6 +260,9 @@ energy rules + copying with errors + selection.
   2.2 in wall), leaving 18% (25:50:25) / 41% (50:30:20, B opens once) per 1000 steps vs 1.5% before;
   A and B leave alike. 200k catalyst rerun with the 25:50:25 mix started 2026-11-13
   (12 runs, `e16mix_*` logs, CSVs `*_mix1-2-3_*`).
+  Result (2026-11-14): all sealed, still no win. A-B at 200k: catalyst unfed +35/-2/+24, fed
+  -33/+25/+2; controls unfed +6/-50/+16, fed -2/+7/-98. ~55% of A's fatty acids joined, but
+  leaving per fatty acid same in A and B (13-16%/1000). Beads lack two-chain ordering of the wall.
 
 - (2026-11-14) e15e long box (x 160, 300k, 3 charged + 3 neutral): split at ~75-100k, sacs
   move apart (to 60-80) without merging, but stay joined by a thin tether in 6/6 (thins to

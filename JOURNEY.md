@@ -200,8 +200,13 @@ Running themes to come back to on camera:
   vs ~11 before), long ones stayed, so the walls end up with longer tails than the mix they
   started from. Nobody told them to choose. Hopping went up 10-30x, which is what the lab
   mechanism needs. With mostly short ones (50%) the plain bag opened for a while and resealed.
-- **Same day:** the long-box rerun of Ep 11 (world twice as long, so daughters can
-  drift apart without wrapping round) is running.
+- **Full test with random oiliness (2026-11-14, 12 runs, 200k):** both bags stay sealed,
+  the catalyst bag no longer falls behind, but it doesn't win either: its lead (-33 to +35)
+  sits inside the spread of the "sugar in both" controls (-98 to +16). The catalyst turns
+  over half its fatty acids into two-chain lipids, yet the rest leave its wall just as
+  often as from the plain bag. In real cells, two-chain lipids stiffen the wall and grip
+  their neighbours; our beads don't. Honest result: the trick needs that missing physics.
+  Footage `e16mix_cats20_feed_s0.mp4`, plot `runs/e16/mix_result.png`.
 - **Viewer ideas for later (from the user):** "ports" in the wall that light or heat
   open so charge can flow (real: light-, heat-, stretch-gated channels), and
   reactions that give off heat or gas and change what happens next. On the

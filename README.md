@@ -758,3 +758,23 @@ walls and food); without it every fatty acid has 2 and old seeds replay exactly 
   checked: maybe the catalyst joins short ones more often). Chains at 30k: A +13 / +28 vs B
   (one seed each, no food: inside the noise).
 
+### Full rerun with random lengths (25:50:25, 200k, 3 seeds x food/no food + controls)
+
+Same as the fixed rerun plus `--fa-lengths "1:0.25,2:0.5,3:0.25"` (`e16mix_*` logs,
+`runs/e16/mix_result.png`, film `e16mix_cats20_feed_s0.mp4`). All 12 sealed to the end.
+
+| | A - B chains at 200k (3 seeds) | mean |
+|---|---|---|
+| catalyst, no food | +35, -2, +24 | +19 |
+| control, no food | +6, -50, +16 | -9 |
+| catalyst, fed | -33, +25, +2 | -2 |
+| control, fed | -2, +7, -98 | -31 |
+
+- **Still no win.** Catalyst curves sit inside the control spread (+-50, one control at -98).
+  The penalty from the fixed rerun (fed A 41-69 behind) is gone, but nothing replaces it.
+- A turns ~55% of its fatty acids into two-chain lipids (256-313 joins; single fatty acids
+  in A ~390-710 vs B ~880-1300), yet per fatty acid A and B lose them at the same rate
+  (13-16% per 1000 steps after 100k, both walls). Wall mean length 2.2 in both.
+- So the lab mechanism's missing piece is still missing: in this bead model two-chain lipids
+  don't make the wall hold its fatty acids tighter. Real phospholipids order the wall
+  (Budin & Szostak 2011); our beads have no such ordering effect.
