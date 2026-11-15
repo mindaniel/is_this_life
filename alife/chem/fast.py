@@ -256,3 +256,67 @@ def cell_pairs3(p, L, cutoff, mol, frozen, sel, half):
                                 out[m, 1] = j
                                 m += 1
     return out[:m].copy()
+
+
+@njit(cache=True)
+def _pair_energy(r2, ta, tb, sigma, rc, eps, wc):
+    """One pair's WCA + cos^2 energy (same as pair_forces)."""
+    c = rc[ta, tb]
+    e = eps[ta, tb]
+    reach = c + wc
+    if r2 >= reach * reach:
+        return 0.0
+    if r2 < c * c:
+        b = sigma[ta, tb]
+        sr2 = b * b / r2
+        sr6 = sr2 * sr2 * sr2
+        return 4.0 * (sr6 * sr6 - sr6) + 1.0 - e
+    if e > 0.0:
+        return -e * 0.5 * (1.0 + math.cos(math.pi * (math.sqrt(r2) - c) / wc))
+    return 0.0
+
+
+@njit(cache=True)
+def _dist2(pos, L, i, j):
+    r2 = 0.0
+    for a in range(pos.shape[1]):
+        d = pos[j, a] - pos[i, a]
+        d -= L[a] * np.rint(d / L[a])
+        r2 += d * d
+    return r2
+
+
+@njit(cache=True)
+def titrate(pos, L, heads, order, s_ptr, s_nbr, c_ptr, c_nbr, typ, t_acid, t_base, sigma, rc, eps, wc,
+            charge, coulomb, debye, cut, kT, mu, u, apply, dE_out):
+    """Constant-pH Monte Carlo: try to flip each head in `order` between acid (H+ on) and base
+    (H+ off), one at a time (neighbours see earlier flips). Energy change = pair terms with the
+    short-list neighbours + screened Coulomb with the charge-list neighbours - mu for losing
+    the H+ (mu = kT ln10 (pH - pKa)). Metropolis: accept if u < exp(-dE / kT).
+    apply=False only fills dE_out (for checks). Returns the number of flips."""
+    shift = math.exp(-cut / debye) / cut
+    flips = 0
+    for k in range(order.shape[0]):
+        h = order[k]
+        i = heads[h]
+        t0 = typ[i]
+        t1 = t_base if t0 == t_acid else t_acid
+        dE = -mu if t1 == t_base else mu
+        for m in range(s_ptr[h], s_ptr[h + 1]):
+            j = s_nbr[m]
+            r2 = _dist2(pos, L, i, j)
+            dE += _pair_energy(r2, t1, typ[j], sigma, rc, eps, wc) - _pair_energy(r2, t0, typ[j], sigma, rc, eps, wc)
+        dq = charge[t1] - charge[t0]
+        for m in range(c_ptr[h], c_ptr[h + 1]):
+            j = c_nbr[m]
+            qj = charge[typ[j]]
+            if qj == 0.0:
+                continue
+            dist = max(math.sqrt(_dist2(pos, L, i, j)), 0.5)
+            if dist < cut:
+                dE += coulomb * dq * qj * (math.exp(-dist / debye) / dist - shift)
+        dE_out[h] = dE
+        if apply and (dE <= 0.0 or u[k] < math.exp(-dE / kT)):
+            typ[i] = t1
+            flips += 1
+    return flips

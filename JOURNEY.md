@@ -207,6 +207,14 @@ Running themes to come back to on camera:
   often as from the plain bag. In real cells, two-chain lipids stiffen the wall and grip
   their neighbours; our beads don't. Honest result: the trick needs that missing physics.
   Footage `e16mix_cats20_feed_s0.mp4`, plot `runs/e16/mix_result.png`.
+- **Acid and not acid (the user's question, 2026-11-15):** soap and fatty acids switch
+  between a neutral form (H+ on) and a charged one, with pH. Built it: every head can now
+  gain or lose its H+, decided by energy, and a neutral head next to a charged one sticks a
+  little (they share the H+). Test at 3 pH values, pairing off/on (6 runs, 30k): all bags
+  sealed. Pairing keeps a third fewer fatty acids floating loose, but they still hop out as
+  often, just come back twice as fast. No "best pH" for holding on. Caveat: our walls go
+  half-charged at pH 5, real ones at 7-9 (our water is too simple). Plot
+  `runs/e17/e17_result.png`.
 - **Viewer ideas for later (from the user):** "ports" in the wall that light or heat
   open so charge can flow (real: light-, heat-, stretch-gated channels), and
   reactions that give off heat or gas and change what happens next. On the

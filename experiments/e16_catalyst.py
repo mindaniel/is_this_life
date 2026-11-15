@@ -16,6 +16,8 @@ sealed pockets; loose lipids; joins so far. A_fa/B_fa: single-chain fatty acids 
 A_len/B_len: their mean tail length (beads; with --fa-lengths).
 A_left/B_left: how many left it since the last row (Hops: checked every 50 steps, so a fatty
 acid that leaves and comes back between two checks is missed).
+With --ph: fatty-acid heads switch between COOH and COO- (reactions.Protonation; --pka, --hbond
+= COOH-COO- pairing); A_q/B_q = charged share of the fatty-acid heads in each wall.
 
     python experiments/e16_catalyst.py --steps 200000 --video runs/video/e16_s0.mp4
     python experiments/e16_catalyst.py --cats 0      # control: no catalyst anywhere
@@ -33,22 +35,24 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from alife.chem.analysis import cluster_labels, water_pockets3   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
-from alife.chem.reactions import LipidJoin   # noqa: E402
+from alife.chem.reactions import HEADS, LipidJoin, Protonation   # noqa: E402
 from alife.chem.world import STAIL, TAIL, TAILS, World   # noqa: E402
 from e15_split3d import feed, mixed_vesicle, offset, parse_lengths, scatter_fast, shear_flow   # noqa: E402
 
 FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "A_in", "B_in", "same_cluster", "pockets", "volumes",
-          "loose", "joins", "added", "A_fa", "B_fa", "A_len", "B_len", "A_left", "B_left"]
-HEADS = (INDEX["head"], INDEX["fa_head"])
+          "loose", "joins", "added", "A_fa", "B_fa", "A_len", "B_len", "A_left", "B_left", "A_q", "B_q"]
 
 
 def build(args):
     box = (args.box_x, args.box, args.box)
     w = World(box=box, kT=args.kT, seed=args.seed, dim=3)
     w.rules.set_oily("stail", args.short_oily)
+    if args.ph is not None:
+        w.rules.set_pair_eps("fa_acid", "fa_head", args.hbond)
     L = np.array(box)
     centres = [np.array([L[0] / 4, L[1] / 2, L[2] / 2]), np.array([3 * L[0] / 4, L[1] / 2, L[2] / 2])]
-    n = sum(mixed_vesicle(w, c, args.radius, args.mix, args.charged, lengths=args.lengths) for c in centres)
+    n = sum(mixed_vesicle(w, c, args.radius, args.mix, args.charged, lengths=args.lengths, acid=args.acid)
+            for c in centres)
     r_in, outer = args.radius - 3.5, args.radius + 2.5
     inside = [lambda p, c=c: np.linalg.norm(offset(w, p, c), axis=1) < r_in for c in centres]
     n_in = int(round(args.osm * 4 / 3 * np.pi * r_in ** 3))
@@ -138,6 +142,8 @@ def measure(w, rx):
         mine = fa & (lab == c)
         row[f"{k}_fa"] = int(mine.sum())
         row[f"{k}_len"] = round(float(n_tail[mine].mean()), 3) if mine.any() else 0
+        fah = np.isin(w.type, (INDEX["fa_head"], INDEX["fa_acid"])) & (lab[w.mol] == c)
+        row[f"{k}_q"] = round(float((w.type[fah] == INDEX["fa_head"]).mean()), 3) if fah.any() else ""
     return row
 
 
@@ -209,6 +215,10 @@ def main():
                    help="rest length of the head-head bond (default bond 1.0 squeezes the pair to ~0.89)")
     p.add_argument("--fa-lengths", default=None,
                    help='random fatty-acid tail lengths, beads:weight, e.g. "1:0.3,2:0.4,3:0.3" (default: all 2)')
+    p.add_argument("--ph", type=float, default=None,
+                   help="heads switch COOH <-> COO- at this pH (default: fixed, --charged of them COO-)")
+    p.add_argument("--pka", type=float, default=4.8, help="pKa of a lone fatty acid in water")
+    p.add_argument("--hbond", type=float, default=0.5, help="COOH-COO- pairing strength (tail-tail = 1)")
     p.add_argument("--feed", type=int, default=0, help="add --batch loose fatty acids every N steps (0 = never)")
     p.add_argument("--batch", type=int, default=1)
     p.add_argument("--shear", type=float, default=0.0)
@@ -221,15 +231,18 @@ def main():
     p.add_argument("--fps", type=int, default=6)
     args = p.parse_args()
     args.lengths = parse_lengths(args.fa_lengths)
+    args.acid = "head" if args.ph is None else "fa_acid"
 
     name = (f"cats{args.cats}_p{args.p_join:g}_nc{args.no_cat:g}_br{args.p_break:g}_mix{args.mix:g}"
             f"_q{args.charged:g}_f{args.feed}x{args.batch}_sh{args.shear:g}" + ("_fa" if args.fa_only else "")
             + (f"_len{args.length:g}" if args.length else "")
-            + ("_mix" + "-".join(map(str, args.lengths[0])) if args.lengths else "") + f"_s{args.seed}")
+            + ("_mix" + "-".join(map(str, args.lengths[0])) if args.lengths else "")
+            + (f"_ph{args.ph:g}_pka{args.pka:g}_hb{args.hbond:g}" if args.ph is not None else "") + f"_s{args.seed}")
     os.makedirs(args.out, exist_ok=True)
     w, n = build(args)
     rx = LipidJoin(p_join=args.p_join, no_cat=args.no_cat, p_break=args.p_break, length=args.length,
                    chains=(STAIL,) if args.fa_only else (TAIL, STAIL))
+    prot = Protonation(args.ph, args.pka, every=rx.every) if args.ph is not None else None
     print(f"{name}: {n} lipids, {w.n} beads", flush=True)
     film = None
     if args.video:
@@ -243,9 +256,11 @@ def main():
     while w.t < args.steps:
         for _ in range(args.every // rx.every):
             w.step(rx.every)
+            if prot:
+                prot.react(w)
             rx.react(w)
             if args.feed and w.t % args.feed == 0:
-                feed(w, args.batch, 0, clear=1.0, charged=args.charged, lengths=args.lengths)
+                feed(w, args.batch, 0, clear=1.0, charged=args.charged, lengths=args.lengths, acid=args.acid)
             hops.check(w, rx)
         row = measure(w, rx)
         row["A_left"], row["B_left"] = hops.take()

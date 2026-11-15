@@ -23,7 +23,7 @@ from alife.chem.analysis import cluster_labels   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
 from alife.chem.world import TAILS, World   # noqa: E402
 
-SUGAR, HEADS = INDEX["sugar"], [INDEX["head"], INDEX["fa_head"]]
+SUGAR, HEADS = INDEX["sugar"], [INDEX["head"], INDEX["fa_head"], INDEX["fa_acid"]]
 
 
 def load(f, n_lipids, radius):

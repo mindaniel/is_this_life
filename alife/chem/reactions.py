@@ -21,9 +21,12 @@ scaled by exp(-Ea (1/kT - 1/kT0)) at the bead's local temperature.
 import numpy as np
 from scipy.spatial import cKDTree
 
+from . import fast
 from .elements import INDEX
 
 CARB, CA, CAT, TAIL, STAIL = INDEX["carb"], INDEX["Ca"], INDEX["cat"], INDEX["tail"], INDEX["stail"]
+FA_HEAD, FA_ACID = INDEX["fa_head"], INDEX["fa_acid"]
+HEADS = (INDEX["head"], FA_HEAD, FA_ACID)
 
 
 class Formose:
@@ -166,7 +169,7 @@ class LipidJoin:
 
     def single_heads(self, world):
         """Head beads of lone fatty acids: molecules of one head + one tail chain of a `chains` type."""
-        heads = np.isin(world.type, (INDEX["head"], INDEX["fa_head"]))
+        heads = np.isin(world.type, HEADS)
         n_head = np.bincount(world.mol[heads], minlength=world.n_mol)
         n_tail = np.bincount(world.mol[np.isin(world.type, self.chains)], minlength=world.n_mol)
         size = np.bincount(world.mol, minlength=world.n_mol)
@@ -175,7 +178,7 @@ class LipidJoin:
 
     def head_bonds(self, world):
         """Indices of bonds that join two heads (the two-chain lipids)."""
-        heads = np.isin(world.type, (INDEX["head"], INDEX["fa_head"]))
+        heads = np.isin(world.type, HEADS)
         b = world.bonds
         return np.flatnonzero(heads[b[:, 0]] & heads[b[:, 1]]) if len(b) else np.zeros(0, int)
 
@@ -215,3 +218,81 @@ class LipidJoin:
         for b in sorted(hit, reverse=True):
             world.break_bond(b)
             self.breaks += 1
+
+
+class Protonation:
+    """Fatty-acid heads take up and give off H+ with the water: COOH (fa_acid, neutral) <-> COO- (fa_head).
+
+    Real carboxylic acids: alone in water, half are charged at pH = pKa (~4.8). In a wall,
+    charged neighbours push each other, so taking off one more H+ costs more: the wall's
+    half-charged point moves up (lab: pH ~7-9 for fatty-acid vesicles). A COOH next to a COO-
+    shares the H+ (rules.pair_eps fa_acid-fa_head), which holds such walls together.
+    Nothing here sets the wall's charge: it comes out of pH, pKa and the neighbours.
+
+    Every `every` steps, `sweeps` passes of constant-pH Monte Carlo (fast.titrate) over all
+    fatty-acid heads in random order: a flip is kept with chance min(1, exp(-dE / kT)), dE = change
+    in pair + charge energy - kT ln10 (pH - pKa) for giving off the H+. Proton hops take
+    nanoseconds, far quicker than lipids move, so a full pass each check is fair.
+    Shortcut (flagged): H+ and counter-ions are implicit (pH is one number everywhere; salt
+    screening as before).
+    """
+
+    def __init__(self, ph, pka=4.8, every=50, sweeps=1):
+        self.ph, self.pka, self.every, self.sweeps = ph, pka, every, sweeps
+        self.flips = 0
+
+    def lists(self, world):
+        """Fatty-acid heads, and their neighbours as CSR lists: short (pair forces) and charge."""
+        heads = np.flatnonzero(np.isin(world.type, (FA_HEAD, FA_ACID)))
+        where = np.full(world.n, -1)
+        where[heads] = np.arange(len(heads))
+        pairs = world._neighbour_pairs()
+        short = []
+        for x, y in ((0, 1), (1, 0)):
+            ok = where[pairs[:, x]] >= 0
+            short.append(np.stack([where[pairs[ok, x]], pairs[ok, y]], 1))
+        sel = np.flatnonzero((world.rules.charge[world.type] != 0) | (where >= 0))
+        group = world._group()
+        cp = sel[cKDTree(world._wrapped()[sel], boxsize=world.L).query_pairs(world.rules.charge_cutoff,
+                                                                              output_type="ndarray")]
+        cp = cp[group[cp[:, 0]] != group[cp[:, 1]]]
+        charge = []
+        for x, y in ((0, 1), (1, 0)):
+            ok = where[cp[:, x]] >= 0
+            charge.append(np.stack([where[cp[ok, x]], cp[ok, y]], 1))
+
+        def csr(parts):
+            e = np.concatenate(parts)
+            e = e[np.argsort(e[:, 0], kind="stable")]
+            ptr = np.concatenate([[0], np.cumsum(np.bincount(e[:, 0], minlength=len(heads)))])
+            return ptr, np.ascontiguousarray(e[:, 1])
+        return heads, csr(short), csr(charge)
+
+    def run(self, world, apply=True, order=None):
+        """One pass; returns dE per head (before its flip). apply=False changes nothing."""
+        heads, (sp, sn), (cpt, cn) = self.lists(world)
+        if not len(heads):
+            return np.zeros(0)
+        r = world.rules
+        order = world.rng.permutation(len(heads)) if order is None else order
+        u = world.rng.uniform(size=len(heads)) if apply else np.zeros(len(heads))
+        mu = world.kT * np.log(10) * (self.ph - self.pka)
+        dE = np.zeros(len(heads))
+        typ = world.type if apply else world.type.copy()
+        n = fast.titrate(np.ascontiguousarray(world.pos), world.box(), heads, order, sp, sn, cpt, cn, typ,
+                         FA_ACID, FA_HEAD, r.sigma, r.rc, r.eps, r.wc, r.charge, r.coulomb, r.debye,
+                         r.charge_cutoff, world.kT, mu, u, apply, dE)
+        if n:
+            self.flips += n
+            world._pairs = None   # the charged-pair list changed
+        return dE
+
+    def react(self, world):
+        for _ in range(self.sweeps):
+            self.run(world)
+
+    def charged(self, world, beads=None):
+        """Fraction of fatty-acid heads (among `beads`, default all) that are COO-."""
+        t = world.type if beads is None else world.type[beads]
+        n = np.isin(t, (FA_HEAD, FA_ACID)).sum()
+        return float((t == FA_HEAD).sum() / n) if n else 0.0

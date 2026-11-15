@@ -113,6 +113,11 @@ energy rules + copying with errors + selection.
   (phospholipid-like); no fuel yet (flagged). e16 = vesicle A with catalysts vs B with
   as many sugar beads; logs chains / two-chain lipids per wall, A_in/B_in; film = slice + counts.
   Use `--length 1.2 --fa-only` (default bond squeezes joined heads: see status).
+- `reactions.Protonation` (constant-pH Monte Carlo, kernel `fast.titrate`): fatty-acid heads
+  switch `fa_head` (COO-) <-> `fa_acid` (COOH) every 50 steps by Metropolis (pH, pKa 4.8,
+  Coulomb, pair energy). `elements.PAIR_EPS` = per-pair attraction (fa_acid-fa_head hydrogen
+  bond), `Rules.set_pair_eps`. e16 `--ph --pka --hbond`, logs A_q/B_q (charged share).
+  `experiments/check_protonation.py` = energy + titration-curve checks.
 
 ## Rules of thumb (learned the hard way)
 
@@ -269,6 +274,11 @@ energy rules + copying with errors + selection.
   ~14 tail beads per unit length, then holds; never snaps). 2/6 end with one sealed sac.
   `runs/e15e/neck.png`. Neck measured along the min-image line: past half the box it reads
   the empty side (check the wall profile along x instead).
+
+- (2026-11-15) e17 protonation (`runs/e17/`, 6 x 30k, pH 4/5/6.5 x pairing 0/1, no catalyst):
+  all sealed. Pairing cuts loose fatty acids (225-316 vs 326-382) but leaving per 1000 steps is
+  higher (25% vs 20%) with trips half as long; no half-charge sweet spot. Walls half charged at
+  pH ~5 (real 7-9: no low-dielectric interface), so compare by charged share. One seed.
 
 ## Next steps (user's choice; ask before starting a big one)
 

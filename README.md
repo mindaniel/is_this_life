@@ -778,3 +778,44 @@ Same as the fixed rerun plus `--fa-lengths "1:0.25,2:0.5,3:0.25"` (`e16mix_*` lo
 - So the lab mechanism's missing piece is still missing: in this bead model two-chain lipids
   don't make the wall hold its fatty acids tighter. Real phospholipids order the wall
   (Budin & Szostak 2011); our beads have no such ordering effect.
+
+### Acid and not acid: heads that switch with pH (e17, `--ph`)
+
+Real fatty-acid heads switch between COOH (neutral, H+ on) and COO- (charged), depending on
+pH. Near half charge, a COOH next to a COO- shares the H+ (a hydrogen bond) and walls hold
+together best: that is why fatty-acid vesicles only exist in a narrow pH band.
+New bead `fa_acid` (COOH) beside `fa_head` (COO-). `reactions.Protonation` (constant-pH
+Monte Carlo): every 50 steps each fatty-acid head tries to gain or lose its H+; the flip is
+accepted by its energy cost: pH vs pKa (4.8, a lone fatty acid), charges around it, and the
+COOH-COO- pairing (`--hbond`, attraction on the cos^2 table; tail-tail = 1). Checks
+(`experiments/check_protonation.py`): kernel energy change = engine energy change (1e-11);
+lone fatty acids follow the textbook curve (9/50/91% charged at pKa -1/0/+1). Old runs
+without `--ph` replay bit for bit.
+
+Shortcuts (flagged): H+ and counter-ions implicit, pH is one number everywhere. COOH oiliness
+0, so no oil drops at low pH. Our walls are half charged at pH ~5, real ones at ~7-9: real
+heads sit at a low-dielectric oil edge where charges push much harder; implicit water can't
+do that. So read results by charged share, not lab pH.
+
+Test (`runs/e17/`, e16 setup without catalyst, 25:50:25 lengths, 30k steps, one seed,
+averages after 10k, both bags):
+
+| pH | pairing | charged share | loose fatty acids | leaving per 1000 steps | trip out (steps) |
+|---|---|---|---|---|---|
+| 4 | off | 0.12 | 326 | 20% | 860 |
+| 4 | on | 0.30 | 232 | 25% | 470 |
+| 5 | off | 0.47 | 337 | 21% | 870 |
+| 5 | on | 0.48 | 225 | 26% | 440 |
+| 6.5 | off | 0.94 | 382 | 16% | 1310 |
+| 6.5 | on | 0.77 | 316 | 21% | 810 |
+
+- All 12 bags sealed to the end, contents 0.66-0.74 left.
+- **Pairing keeps more fatty acids in the wall** (loose 225-316 vs 326-382), and pulls
+  the charge towards half (pH 4: 12% -> 30%, pH 6.5: 94% -> 77%).
+- **But they don't leave less often**: they leave ~25% more often and come back twice as
+  fast (trip out = loose / departures). The pairing grabs fatty acids near the wall back
+  in; it doesn't hold the ones already in it tighter.
+- No sweet spot at half charge in leaving. Fully charged walls (pH 6.5, no pairing) have the
+  most fatty acids out, but each trip lasts longest (charged loners are pushed off the
+  charged wall). One seed: differences of a few % are inside noise.
+- Plot `runs/e17/e17_result.png` (`runs/e17/e17_plot.py`).

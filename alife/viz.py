@@ -84,7 +84,7 @@ class View:
         """Colour key for the bead types in this world (and `coming` ones rain will bring), below the picture."""
         from matplotlib.lines import Line2D
         present = set(NAMES[t] for t in np.unique(self.world.type)) | set(coming)
-        items = [(COLOR[INDEX[n]], n) for n in ("head", "tail", "stail", "fa_head", "Na", "K", "Cl", "Mg", "Ca", "sugar",
+        items = [(COLOR[INDEX[n]], n) for n in ("head", "tail", "stail", "fa_head", "fa_acid", "Na", "K", "Cl", "Mg", "Ca", "sugar",
                                                 "hcn", "nh3") if n in present]
         items += [(c, label) for _, c, label in CARB_COLORS]
         if "hcn" in present:

@@ -47,6 +47,8 @@ class Rules:
             self.sigma[el.INDEX[a], el.INDEX[b]] = self.sigma[el.INDEX[b], el.INDEX[a]] = s
         self.oily = oily
         self.eps = np.sqrt(oily[:, None] * oily[None, :])
+        self.pair_eps = dict(el.PAIR_EPS)   # attractions that are not oiliness (hydrogen bonds)
+        self._apply_pair_eps()
         self.charge = np.array(el.CHARGE, dtype=float)
         assert self.sigma.shape == (n, n)
         self.wc = 1.6
@@ -63,6 +65,17 @@ class Rules:
         self.oily = self.oily.copy()
         self.oily[k] = value
         self.eps[k, :] = self.eps[:, k] = np.sqrt(self.oily[k] * self.oily)
+        self._apply_pair_eps()
+
+    def set_pair_eps(self, a, b, value):
+        """Attraction depth between bead types a and b only (e.g. a hydrogen bond)."""
+        self.eps = self.eps.copy()
+        self.pair_eps[(a, b)] = value
+        self._apply_pair_eps()
+
+    def _apply_pair_eps(self):
+        for (a, b), e in self.pair_eps.items():
+            self.eps[el.INDEX[a], el.INDEX[b]] = self.eps[el.INDEX[b], el.INDEX[a]] = e
 
     @property
     def rc(self):

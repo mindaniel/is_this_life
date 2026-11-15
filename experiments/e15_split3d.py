@@ -41,9 +41,10 @@ from alife.chem.world import STAIL, TAILS, World   # noqa: E402
 FIELDS = ["step", "biggest", "big_short", "clusters30", "loose", "pockets", "volumes", "length", "added"]
 
 
-def fa_head(w, charged):
-    """Head of a fatty acid: charged (COO-) with chance `charged`, else neutral (COOH)."""
-    return "fa_head" if charged and w.rng.uniform() < charged else "head"   # no draw at 0: old seeds replay
+def fa_head(w, charged, acid="head"):
+    """Head of a fatty acid: charged (COO-) with chance `charged`, else neutral (COOH): the plain
+    "head" bead, or "fa_acid" when heads can switch (reactions.Protonation)."""
+    return "fa_head" if charged and w.rng.uniform() < charged else acid   # no draw at 0: old seeds replay
 
 
 def fa_tails(w, lengths):
@@ -64,7 +65,7 @@ def parse_lengths(text):
     return tuple(int(n) for n, _ in pairs), tuple(p / total for _, p in pairs)
 
 
-def mixed_vesicle(w, center, radius, mix, charged=0.0, area=1.2, lengths=None):
+def mixed_vesicle(w, center, radius, mix, charged=0.0, area=1.2, lengths=None, acid="head"):
     """vesicle3 with each lipid short-tail ("stail") with chance mix; short-tail heads charged
     with chance `charged`, tail length from `lengths` (fa_tails). Returns the count."""
     r0 = w.rules.bond_r0
@@ -78,7 +79,7 @@ def mixed_vesicle(w, center, radius, mix, charged=0.0, area=1.2, lengths=None):
         u = np.stack([np.sqrt(1 - z ** 2) * np.cos(phi), np.sqrt(1 - z ** 2) * np.sin(phi), z], 1)
         for d in u:
             if w.rng.uniform() < mix:
-                head = fa_head(w, charged)
+                head = fa_head(w, charged, acid)
                 add_lipid3(w, center + r_head * d, -side * d, fa_tails(w, lengths), head=head, tail="stail")
             else:
                 add_lipid3(w, center + r_head * d, -side * d, 2)
@@ -138,7 +139,7 @@ def biggest(w):
     return mask, c, np.percentile(r, 90)
 
 
-def feed(w, count, near, clear=1.5, charged=0.0, tries=20000, lengths=None):
+def feed(w, count, near, clear=1.5, charged=0.0, tries=20000, lengths=None, acid="head"):
     """count loose short-tail lipids at free spots (within `near` outside the vesicle, or anywhere),
     tail length from `lengths` (fa_tails)."""
     r0 = w.rules.bond_r0
@@ -158,7 +159,7 @@ def feed(w, count, near, clear=1.5, charged=0.0, tries=20000, lengths=None):
             a /= np.linalg.norm(a)
             beads = (p + np.outer(np.arange(n + 1) * r0, a)) % w.L
             if tree.query(beads)[0].min() > clear:
-                add_lipid3(w, p, a, n, head=fa_head(w, charged), tail="stail")
+                add_lipid3(w, p, a, n, head=fa_head(w, charged, acid), tail="stail")
                 added += 1
                 break
     return added

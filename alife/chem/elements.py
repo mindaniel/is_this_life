@@ -33,6 +33,7 @@ ELEMENTS = [
     ("hcn",      0,   0.80, 0.0, "#2A6FB0", "hydrogen cyanide, HCN. Alone = HCN; chains = HCN polymer (dark, absorbs light)"),
     ("nh3",      0,   0.75, 0.0, "#A3C9E8", "ammonia, NH3 (a base: speeds HCN polymer; N source for amino acids)"),
     ("cat",      0,   1.00, 0.0, "#2E8B57", "catalyst: a big folded molecule (short peptide / ribozyme), can't cross a membrane"),
+    ("fa_acid",  0,   0.95, 0.0, "#C98BB0", "fatty acid head, COOH (H+ on: neutral). Protonation swaps it with fa_head"),
 ]
 
 NAMES = [row[0] for row in ELEMENTS]
@@ -49,4 +50,14 @@ PAIR_SIZE = {
     ("fa_head", "tail"): 0.95,
     ("head", "stail"): 0.95,
     ("fa_head", "stail"): 0.95,
+    ("fa_acid", "tail"): 0.95,
+    ("fa_acid", "stail"): 0.95,
+}
+
+# Attractions that are not oiliness: a COOH head and a COO- head next to each other share
+# the H+ (hydrogen bond), so half-charged fatty-acid walls hold together best. Strength
+# in the same units as oily (tail-tail = 1); the value is a guess, tune with
+# Rules.set_pair_eps. COOH-COOH pairs (dimers) are left out: in water they barely form.
+PAIR_EPS = {
+    ("fa_acid", "fa_head"): 0.5,
 }
