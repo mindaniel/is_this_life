@@ -134,6 +134,14 @@ class Nitrogen:
         self.hydrolysed += len(hit)
 
 
+def dark_beads(world, n=5):
+    """Beads in pure-HCN chains of n or more: the dark HCN polymer (absorbs visible light)."""
+    t, size = world.type, np.bincount(world.mol, minlength=world.n_mol)
+    n_h = np.bincount(world.mol[t == HCN], minlength=world.n_mol)
+    dark = (n_h == size) & (size >= n)
+    return np.flatnonzero(dark[world.mol])
+
+
 def census(world):
     """What the nitrogen ended up in: lone HCN / NH3 / formaldehyde, glycine,
     glycolonitrile, and HCN chains by length (hcn_chains[n] = chains of n HCN)."""

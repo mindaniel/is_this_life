@@ -26,6 +26,27 @@ its H+ onto a nearby COO-), so A's inside turns acid. Turns on --sealed-h. burns
 --shocks "t:dpH,...": sudden pH jumps of the outside water, drifting back (--relax steps);
 ph column = outside pH. --acid-oily x: COOH heads a little oily (real COOH is far less
 water-loving than COO-; lets neutral fatty acids slip into the oil, as at low pH in the lab).
+A third number per shock holds it that many steps before it fades ("5000:-3:20000");
+--shock-rate r adds random shocks (r per 10k steps, size --shock-size "1:3", up or down).
+--heat h: each burn gives out h kT of heat to the beads around it (Burn.kick).
+--pump N: N of A's fatty acids carry a pigment head (light-driven H+ pump, reactions.LightPump:
+pushes H+ from outside onto A's inner heads while the light is on); --light-period P (day = first
+half), 0 = always on; --pump-gain (kT kept per photon). pumps = so far, light = 1/0.
+--rain "t:frac,...": rain adds water (frac of the volume) over --rain-over steps, evaporation takes
+it back over --evap steps (0 = never). Each bag moves as a whole with its contents; the outside
+gets more dilute. water = volume now / at start.
+--save-every K: save the whole world (World.save) to <name>_state.pkl every K steps and at the end.
+--start state.pkl: carry on from a saved world (no build) for --steps more steps, with whatever
+conditions the flags give now (rules and bead set come from the file; --reseed s: new random
+stream). Saved worlds can be joined first: experiments/merge_worlds.py.
+--hcn N / --nh3 M: add N HCN and M ammonia beads in the water outside the bags (at the start, or
+when carrying on). With any HCN in the world, the nitrogen chemistry runs (nitrogen.Nitrogen,
+rates calibrated at this kT): HCN chains grow where HCN is concentrated (experiments/hcn_pond.py).
+--glow: pure-HCN chains of --dark-len or more (dark polymer, real HCN polymer is brown-black)
+absorb light (--p-abs, --light-period): each photon gives --glow-heat kT of heat around it, and
+with --glow-gain g > 0 tries to put an H+ onto a nearby COO- (photo-acid; speculative, flagged).
+Logs hcn (lone), dark (beads in dark chains), longest, dark_wall (dark beads touching a lipid),
+absorbed (photons so far), glow_acid (H+ put on by light so far).
 
     python experiments/e16_catalyst.py --steps 200000 --video runs/video/e16_s0.mp4
     python experiments/e16_catalyst.py --cats 0      # control: no catalyst anywhere
@@ -43,13 +64,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from alife.chem.analysis import cluster_labels, water_pockets3   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
-from alife.chem.reactions import HEADS, Burn, LipidJoin, PHShocks, Protonation   # noqa: E402
+from alife.chem.nitrogen import HCN, NH3, Nitrogen, census, dark_beads   # noqa: E402
+from alife.chem.reactions import HEADS, PIGMENT, Burn, LightPump, LipidJoin, PHShocks, Protonation   # noqa: E402
 from alife.chem.world import STAIL, TAIL, TAILS, World   # noqa: E402
 from e15_split3d import feed, mixed_vesicle, offset, parse_lengths, scatter_fast, shear_flow   # noqa: E402
 
 FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "A_in", "B_in", "same_cluster", "pockets", "volumes",
           "loose", "joins", "added", "A_fa", "B_fa", "A_len", "B_len", "A_left", "B_left", "A_q", "B_q",
-          "A_oh", "B_oh", "A_qin", "B_qin", "ph", "burns"]
+          "A_oh", "B_oh", "A_qin", "B_qin", "ph", "burns", "pumps", "light", "water",
+          "hcn", "dark", "longest", "dark_wall", "absorbed", "glow_acid"]
 FA_OH = INDEX["fa_oh"]
 CHAIN_HEADS = HEADS + (FA_OH,)   # every single-tail head (fatty alcohols too) counts as a chain
 
@@ -77,6 +100,11 @@ def build(args):
         if args.fuel:
             scatter_fast(w, args.fuel, keep, name="fuel")   # both bags: same fuel, only A can burn it
         w.markers.append(np.arange(start, w.n))
+    if args.pump:   # pigment heads on N random fatty acids of A's wall
+        fah = np.flatnonzero(np.isin(w.type, (INDEX["fa_head"], INDEX["fa_acid"], INDEX["head"]))
+                             & (np.linalg.norm(offset(w, w.pos, centres[0]), axis=1) < args.radius + 3)
+                             & np.isin(w.mol, w.mol[w.type == STAIL]))
+        w.type[w.rng.choice(fah, args.pump, replace=False)] = PIGMENT
     n_out = int(round(args.osm * (np.prod(L) - 2 * 4 / 3 * np.pi * (outer + 1.0) ** 3)))
     scatter_fast(w, n_out, lambda p: np.all([np.linalg.norm(offset(w, p, c), axis=1) > outer + 1.0
                                              for c in centres], axis=0))
@@ -86,6 +114,39 @@ def build(args):
     if args.shear:
         w.flow = shear_flow(args.box, args.shear)
     return w, n
+
+
+def bag_centre(w, markers):
+    """Middle of a bag's contents (marker beads), taking the periodic box into account."""
+    d = w.pos[markers] - w.pos[markers[0]]
+    d -= w.L * np.round(d / w.L)
+    return (w.pos[markers[0]] + d.mean(0)) % w.L
+
+
+def add_nitrogen(w, args):
+    """--hcn / --nh3 beads into the water outside both bags (radius + 4 from each bag's middle)."""
+    centres = [bag_centre(w, m) for m in w.markers]
+    away = args.radius + 4.0
+    outside = lambda p: np.all([np.linalg.norm(offset(w, p, c), axis=1) > away for c in centres], axis=0)
+    for name, count in (("hcn", args.hcn), ("nh3", args.nh3)):
+        if count:
+            scatter_fast(w, count, outside, name=name)
+
+
+def nitrogen_row(w, glow, dark_len):
+    c = census(w)
+    h = c["hcn_chains"]
+    dark = dark_beads(w, dark_len)
+    lipid = np.flatnonzero(np.isin(w.type, TAILS + HEADS))
+    touch = 0
+    if len(dark) and len(lipid):
+        p = w._wrapped()
+        touch = int((cKDTree(p[lipid], boxsize=w.L).query(p[dark], distance_upper_bound=1.5)[0] < np.inf).sum())
+    row = {"hcn": c["hcn"], "dark": len(dark), "longest": int(np.flatnonzero(h)[-1]) if h[2:].any() else 1,
+           "dark_wall": touch}
+    if glow:
+        row["absorbed"], row["glow_acid"], row["light"] = glow.absorbed, glow.pumps, int(glow.light(w.t))
+    return row
 
 
 def wall_of(w, markers, lab, lipid_beads):
@@ -100,6 +161,7 @@ def single_fa(w, rx):
     fa = np.zeros(w.n_mol, bool)
     fa[w.mol[w.type == STAIL]] = True
     fa[w.mol[w.bonds[rx.head_bonds(w)][:, 0]]] = False
+    fa[w.mol[w.type == PIGMENT]] = False   # pigment carriers are not counted as fatty acids
     return fa
 
 
@@ -125,6 +187,46 @@ class Hops:
     def take(self):
         out, self.left = self.left, [0, 0]
         return out
+
+
+class Rain:
+    """Rain adds water, evaporation takes it back (implicit water: the box grows / shrinks).
+    Each event (step, frac): the volume grows by frac x start volume over `over` steps, then
+    shrinks back over `evap` steps (0 = stays). Lipid clumps move as a whole, and beads sealed
+    in a bag move with that bag (World.rescale group), so only the outside gets more dilute."""
+
+    def __init__(self, events, over=2000, evap=20000):
+        self.events, self.over, self.evap = events, over, evap
+        self.now = 1.0
+
+    @staticmethod
+    def parse(text):
+        return [(int(a), float(b)) for a, b in (x.split(":") for x in text.split(","))] if text else []
+
+    def target(self, t):
+        v = 1.0
+        for s, frac in self.events:
+            if t >= s:
+                up = min(1.0, (t - s) / self.over)
+                down = min(1.0, max(0.0, t - s - self.over) / self.evap) if self.evap else 0.0
+                v += frac * (up - down)
+        return v
+
+    def apply(self, w):
+        goal = self.target(w.t)
+        if abs(goal / self.now - 1) < 0.002:
+            return
+        group = cluster_labels(w)
+        lipid_beads = np.flatnonzero(np.isin(w.mol, np.unique(w.mol[np.isin(w.type, TAILS)])))
+        allm = np.concatenate(w.markers)
+        sealed = water_pockets3(w, beads=allm)[2]
+        lab = group.copy()
+        for m in w.markers:   # a bag's sealed contents ride with its wall
+            c = wall_of(w, m, lab, lipid_beads)
+            inside = m[sealed[np.isin(allm, m)]]
+            group[w.mol[inside]] = c
+        w.rescale((goal / self.now) ** (1 / 3), group, unwrap=True)
+        self.now = goal
 
 
 def measure(w, rx, prot=None):
@@ -247,6 +349,25 @@ def main():
     p.add_argument("--shocks", default="", help='outside pH jumps "step:dpH,..." e.g. "5000:-3"')
     p.add_argument("--relax", type=float, default=5000, help="steps for a pH shock to fade (time constant)")
     p.add_argument("--acid-oily", type=float, default=0.0, help="oiliness of COOH heads (fa_acid)")
+    p.add_argument("--shock-rate", type=float, default=0.0, help="random pH shocks per 10k steps")
+    p.add_argument("--shock-size", default="1:3", help="random shock size range (pH units)")
+    p.add_argument("--heat", type=float, default=0.0, help="heat per burn (kT) given to nearby beads")
+    p.add_argument("--pump", type=int, default=0, help="pigment pumps in A's wall (light-driven H+ in)")
+    p.add_argument("--pump-gain", type=float, default=10.0, help="kT kept per absorbed photon")
+    p.add_argument("--p-abs", type=float, default=0.2, help="photon absorbed per pigment per check (light on)")
+    p.add_argument("--light-period", type=int, default=20000, help="day+night length in steps (0 = always on)")
+    p.add_argument("--rain", default="", help='rain events "step:frac,..." (frac of volume added)')
+    p.add_argument("--rain-over", type=int, default=2000)
+    p.add_argument("--evap", type=int, default=20000, help="steps for the rain water to evaporate (0 = never)")
+    p.add_argument("--save-every", type=int, default=0, help="save the world every N steps (and at the end)")
+    p.add_argument("--start", default=None, help="carry on from a saved world (.pkl) for --steps more steps")
+    p.add_argument("--reseed", type=int, default=None, help="with --start: new random stream from this seed")
+    p.add_argument("--hcn", type=int, default=0, help="HCN beads added outside the bags")
+    p.add_argument("--nh3", type=int, default=0, help="ammonia beads added outside the bags")
+    p.add_argument("--glow", action="store_true", help="dark HCN polymer absorbs light")
+    p.add_argument("--dark-len", type=int, default=5, help="HCN chain length that counts as dark pigment")
+    p.add_argument("--glow-heat", type=float, default=10.0, help="heat (kT) per absorbed photon")
+    p.add_argument("--glow-gain", type=float, default=0.0, help="photo-acid: kT per photon to put H+ on a COO- (0 = off)")
     p.add_argument("--feed", type=int, default=0, help="add --batch loose fatty acids every N steps (0 = never)")
     p.add_argument("--batch", type=int, default=1)
     p.add_argument("--shear", type=float, default=0.0)
@@ -260,10 +381,10 @@ def main():
     args = p.parse_args()
     args.lengths = parse_lengths(args.fa_lengths)
     args.acid = "head" if args.ph is None else "fa_acid"
-    if args.fuel:
+    if args.fuel or args.pump:
         args.sealed_h = True
-    if (args.sealed_h or args.shocks or args.acid_oily) and args.ph is None:
-        p.error("--sealed-h, --fuel, --shocks and --acid-oily need --ph")
+    if (args.sealed_h or args.shocks or args.shock_rate or args.acid_oily) and args.ph is None:
+        p.error("--sealed-h, --fuel, --pump, --shocks and --acid-oily need --ph")
 
     name = (f"cats{args.cats}_p{args.p_join:g}_nc{args.no_cat:g}_br{args.p_break:g}_mix{args.mix:g}"
             f"_q{args.charged:g}_f{args.feed}x{args.batch}_sh{args.shear:g}" + ("_fa" if args.fa_only else "")
@@ -273,14 +394,56 @@ def main():
             + (f"_oh{args.alcohol:g}" if args.alcohol else "") + ("_sealH" if args.sealed_h else "")
             + (f"_fuel{args.fuel}_pb{args.p_burn:g}" if args.fuel else "")
             + ("_shock" + args.shocks.replace(":", "x").replace(",", "_") + f"_r{args.relax:g}" if args.shocks else "")
-            + (f"_ao{args.acid_oily:g}" if args.acid_oily else "") + f"_s{args.seed}")
+            + (f"_ao{args.acid_oily:g}" if args.acid_oily else "")
+            + (f"_srate{args.shock_rate:g}x{args.shock_size.replace(':', '-')}_r{args.relax:g}" if args.shock_rate else "")
+            + (f"_heat{args.heat:g}" if args.heat else "")
+            + (f"_pump{args.pump}_g{args.pump_gain:g}_pa{args.p_abs:g}_P{args.light_period}" if args.pump else "")
+            + ("_rain" + args.rain.replace(":", "x").replace(",", "_") + f"_o{args.rain_over}_ev{args.evap}"
+               if args.rain else "")
+            + (f"_hcn{args.hcn}_nh{args.nh3}" if args.hcn or args.nh3 else "")
+            + (f"_glow{args.dark_len}_h{args.glow_heat:g}_g{args.glow_gain:g}_pa{args.p_abs:g}_P{args.light_period}"
+               if args.glow else "") + f"_s{args.seed}")
+    if args.start:
+        name = os.path.splitext(os.path.basename(args.start))[0].replace("_state", "") + "_then_" + name
+        if args.reseed is not None:
+            name += f"_rs{args.reseed}"
     os.makedirs(args.out, exist_ok=True)
-    w, n = build(args)
+    if args.start:
+        w, _ = World.load(args.start)
+        if args.reseed is not None:
+            w.rng = np.random.default_rng(args.reseed)
+        n = len(np.unique(w.mol[np.isin(w.type, TAILS)]))
+        if args.shear:
+            w.flow = shear_flow(args.box, args.shear)
+    else:
+        w, n = build(args)
+    if args.hcn or args.nh3:
+        add_nitrogen(w, args)
+        w.step(200, max_force=50)   # new beads may sit close to old ones
+        w.t -= 200
+    nit = None
+    if (w.type == HCN).any() or (w.type == NH3).any():
+        w.repel_inside = tuple(sorted(set(w.repel_inside) | {HCN, NH3}))   # floppy chains: no folding through
+        nit = Nitrogen(every=50, kT0=w.kT)   # rates as calibrated, at this temperature
+    end = w.t + args.steps
     rx = LipidJoin(p_join=args.p_join, no_cat=args.no_cat, p_break=args.p_break, length=args.length,
                    chains=(STAIL,) if args.fa_only else (TAIL, STAIL))
     prot = Protonation(args.ph, args.pka, every=rx.every, hand_over=args.sealed_h) if args.ph is not None else None
-    ph_of = PHShocks(args.ph, PHShocks.parse(args.shocks), args.relax) if args.ph is not None else None
-    burn = Burn(every=rx.every, p_burn=args.p_burn) if args.fuel else None
+    shocks = PHShocks.parse(args.shocks)
+    if args.shock_rate:
+        lo, hi = map(float, args.shock_size.split(":"))
+        shocks += [(s + w.t, j, hd) for s, j, hd in PHShocks.random(args.shock_rate, args.steps, args.seed, (lo, hi))]
+        print("random shocks:", shocks, flush=True)
+    ph_of = PHShocks(args.ph, shocks, args.relax) if args.ph is not None else None
+    burn = Burn(every=rx.every, p_burn=args.p_burn, heat=args.heat) if args.fuel else None
+    pump = LightPump(every=rx.every, p_abs=args.p_abs, gain=args.pump_gain, period=args.light_period,
+                     pka=args.pka) if args.pump else None
+    rain = Rain(Rain.parse(args.rain), args.rain_over, args.evap) if args.rain else None
+    glow = LightPump(every=rx.every, p_abs=args.p_abs, gain=args.glow_gain, period=args.light_period, pka=args.pka,
+                     pigment=lambda w: dark_beads(w, args.dark_len), any_head=True,
+                     heat=args.glow_heat) if args.glow else None
+    if glow and args.glow_gain and prot is None:
+        p.error("--glow-gain needs --ph")
     if args.sealed_h:
         prot.closed = Protonation.facing(w)
     print(f"{name}: {n} lipids, {w.n} beads", flush=True)
@@ -293,15 +456,24 @@ def main():
     t0 = time.time()
     hops = Hops()
     hops.check(w, rx)
-    while w.t < args.steps:
+    state = os.path.join(args.out, name + "_state.pkl")
+    while w.t < end:
         for _ in range(args.every // rx.every):
             w.step(rx.every)
             if prot:
                 prot.ph = ph_of(w.t)
                 prot.react(w)
+            if pump:
+                pump.react(w, prot.ph, prot.closed, prot)
+            if glow:
+                glow.react(w, prot.ph if prot else 7.0, prot.closed if prot else None, prot)
+            if nit:
+                nit.react(w)
             if burn:
                 burn.react(w)
             rx.react(w)
+            if rain:
+                rain.apply(w)
             if args.feed and w.t % args.feed == 0:
                 feed(w, args.batch, 0, clear=1.0, charged=args.charged, lengths=args.lengths, acid=args.acid,
                      alcohol=args.alcohol)
@@ -312,8 +484,16 @@ def main():
             row["ph"] = round(prot.ph, 3)
         if burn:
             row["burns"] = burn.burns
+        if pump:
+            row["pumps"], row["light"] = pump.pumps, int(pump.light(w.t))
+        if rain:
+            row["water"] = round(rain.now, 4)
+        if nit:
+            row.update(nitrogen_row(w, glow, args.dark_len))
         if args.sealed_h:
             prot.closed = Protonation.facing(w)   # who faces a sealed inside, refreshed every row
+        if args.save_every and w.t % args.save_every == 0:
+            w.save(state, args=vars(args))
         writer.writerow(row)
         log.flush()
         if film:
@@ -321,6 +501,7 @@ def main():
         if w.t % (10 * args.every) == 0:
             print(f"step {w.t} {row} ({time.time() - t0:.0f}s)", flush=True)
     log.close()
+    w.save(state, args=vars(args))
     np.savez_compressed(os.path.join(args.out, name + "_final.npz"), pos=w.pos, type=w.type, mol=w.mol, L=w.L,
                         bonds=w.bonds, marker_A=w.markers[0], marker_B=w.markers[1])
     if film:

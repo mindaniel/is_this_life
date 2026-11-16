@@ -11,6 +11,8 @@ More salt = shorter debye length = charges feel each other less far.
 
 Units: bead size sigma = 1, energy epsilon = 1, mass = 1.
 """
+import pickle
+
 import numpy as np
 from scipy.spatial import cKDTree
 
@@ -204,7 +206,7 @@ class World:
     def n(self):
         return len(self.pos)
 
-    def rescale(self, f, group=None):
+    def rescale(self, f, group=None, unwrap=False):
         """Shrink (f < 1) or grow the box: water leaves or comes back (implicit water).
 
         Each molecule's middle moves with the box; its shape stays, so bonds
@@ -212,6 +214,11 @@ class World:
         group (one label per molecule, e.g. clusters) moves whole clumps
         instead, so water flows around a membrane rather than pulling every
         lipid apart.
+        unwrap: find each clump's shape by stepping from molecule to touching molecule
+        (needed when a clump is wider than half the box: the shortest way through the
+        periodic walls then points the wrong way for its far side). Members not touching
+        the rest (e.g. sugar sealed in a bag) are placed by the shortest way to the clump's
+        middle. A clump that wraps all the way round the box can't be moved whole.
         """
         first = np.zeros(self.n_mol, dtype=int)
         first[self.mol[::-1]] = np.arange(self.n)[::-1]   # one bead per molecule as anchor
@@ -227,6 +234,8 @@ class World:
             gfirst[group[::-1]] = np.arange(self.n_mol)[::-1]
             dm = mid - mid[gfirst[group]]
             dm -= self.L * np.round(dm / self.L)
+            if unwrap:
+                dm = self._unwrap_groups(mid, group, gfirst)
             gc = np.bincount(group, minlength=ng)[:, None]
             gmid = np.stack([np.bincount(group, dm[:, k], minlength=ng) for k in range(self.dim)], 1)
             gmid = mid[gfirst] + gmid / np.maximum(gc, 1)
@@ -238,6 +247,136 @@ class World:
         self.pos = mid[self.mol] * f + (anchor + d - mid[self.mol])
         self.L *= f
         self._pairs = None
+
+    def _unwrap_groups(self, mid, group, gfirst, reach=3.0):
+        """Offset of each molecule middle from its group's first one, found by walking
+        through touching molecules (breadth first) instead of one shortest-way jump."""
+        from scipy.sparse import coo_matrix
+        from scipy.sparse.csgraph import breadth_first_order
+        wrapped = np.mod(mid, self.L)
+        wrapped[wrapped >= self.L] = 0.0
+        pairs = cKDTree(wrapped, boxsize=self.L).query_pairs(reach, output_type="ndarray")
+        pairs = pairs[group[pairs[:, 0]] == group[pairs[:, 1]]]
+        n = len(mid)
+        graph = coo_matrix((np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])), shape=(n, n)).tocsr()
+        dm = np.full((n, self.dim), np.nan)
+        size = np.bincount(group)
+        dm[size[group] == 1] = 0.0
+        for g0 in gfirst[np.flatnonzero(size > 1)]:   # one walk per group, from its first molecule
+            order, parent = breadth_first_order(graph, g0, directed=False)
+            dm[g0] = 0.0
+            for m in order[1:]:
+                p = parent[m]
+                d = mid[m] - mid[p]
+                dm[m] = dm[p] + d - self.L * np.round(d / self.L)
+        lost = np.flatnonzero(np.isnan(dm[:, 0]))
+        if len(lost):   # not touching the rest: shortest way to the walked part's middle
+            ok = ~np.isnan(dm[:, 0])
+            ng = group.max() + 1
+            cnt = np.bincount(group[ok], minlength=ng)[:, None]
+            cen = np.stack([np.bincount(group[ok], dm[ok, k], minlength=ng) for k in range(self.dim)], 1)
+            cen = cen / np.maximum(cnt, 1)
+            d = mid[lost] - (mid[gfirst[group[lost]]] + cen[group[lost]])
+            dm[lost] = cen[group[lost]] + d - self.L * np.round(d / self.L)
+        return dm
+
+    # ---- saving, carrying on, joining two worlds --------------------------
+    FUNCTIONS = ("flow", "kT_field", "external")   # not saved: set them again after load
+
+    def save(self, path, **extra):
+        """Save the whole state (positions, speeds, bonds, random-number state, ...), so a run
+        can carry on later, with the same or with new conditions. extra: other objects to keep
+        with it (e.g. reaction counters). flow / kT_field / external are not saved."""
+        state = {k: v for k, v in self.__dict__.items() if k not in self.FUNCTIONS}
+        with open(path, "wb") as f:
+            pickle.dump({"world": state, "extra": extra}, f)
+
+    @classmethod
+    def load(cls, path):
+        """World saved by save(); returns (world, extra). Carrying on with the same conditions
+        replays the unbroken run bit for bit."""
+        with open(path, "rb") as f:
+            d = pickle.load(f)
+        w = cls.__new__(cls)
+        w.__dict__.update(d["world"])
+        for k in cls.FUNCTIONS:
+            setattr(w, k, None)
+        return w, d["extra"]
+
+    def _mol_mids(self):
+        """Middle of each molecule (molecules kept whole across periodic walls)."""
+        first = np.zeros(self.n_mol, dtype=int)
+        first[self.mol[::-1]] = np.arange(self.n)[::-1]
+        d = self.pos - self.pos[first[self.mol]]
+        d -= self.L * np.round(d / self.L)
+        count = np.maximum(np.bincount(self.mol, minlength=self.n_mol), 1)[:, None]
+        mid = np.stack([np.bincount(self.mol, d[:, k], minlength=self.n_mol) for k in range(self.dim)], 1)
+        return self.pos[first] + mid / count, first, d
+
+    def cut_open(self, axis=0, slab=2.0):
+        """Open the box along `axis` at its emptiest slab: shift so the cut is at 0, put every
+        molecule whole inside [0, L). Periodic shift = same physics. Returns the cut position."""
+        L = self.box()[axis]
+        x = np.mod(self.pos[:, axis], L)
+        bins = max(int(L / slab), 1)
+        h = np.bincount(np.minimum((x / L * bins).astype(int), bins - 1), minlength=bins)
+        h = h + np.roll(h, 1) + np.roll(h, -1)   # emptiest 3 slabs in a row
+        cut = (np.argmin(h) + 0.5) * L / bins
+        mid, first, d = self._mol_mids()
+        shift = np.mod(mid[:, axis] - cut, L) - mid[:, axis]   # each molecule's middle into [0, L)
+        whole = self.pos[first[self.mol]] + d   # each molecule unbroken
+        whole[:, axis] += shift[self.mol]
+        self.pos = whole
+        self._pairs = None
+        return cut
+
+    @staticmethod
+    def merge(a, b, axis=0, seed=0):
+        """Join two worlds side by side along `axis` (two ponds that meet). The other box sides
+        must match. Each is cut open at its emptiest slab first (bags stay whole if one slab is
+        empty of them); b goes after a. a's rules are used (b's beads must have the same ones). Beads at the seam may
+        overlap: run step(200, max_force=50) before real physics, as after any build.
+        The new world keeps a's time and gets a fresh random stream from `seed`."""
+        La, Lb = a.box(), b.box()
+        other = np.arange(a.dim) != axis
+        if a.dim != b.dim or not np.allclose(La[other], Lb[other]):
+            raise ValueError("worlds must have the same dim and the same box size across the seam")
+        r1, r2 = a.rules, b.rules   # b's beads must feel the same rules in a's world
+        k = np.unique(b.type)
+        if not (np.allclose(r1.eps[np.ix_(k, k)], r2.eps[np.ix_(k, k)]) and np.allclose(r1.charge[k], r2.charge[k])
+                and a.kT == b.kT):
+            raise ValueError("the two worlds use different rules (oiliness, charge or kT) for b's beads")
+        box = La.copy()
+        box[axis] += Lb[axis]
+        w = World(box=box, rules=a.rules, kT=a.kT, gamma=a.gamma, dt=a.dt, seed=seed, dim=a.dim)
+        parts = []
+        for k, src in enumerate((a, b)):
+            c = World.__new__(World)
+            c.__dict__.update(src.__dict__)
+            c.pos = src.pos.copy()
+            c.cut_open(axis)
+            if k:
+                c.pos[:, axis] += La[axis]
+            parts.append(c)
+        a2, b2 = parts
+        w.pos = np.vstack([a2.pos, b2.pos])
+        w.vel = np.vstack([a.vel, b.vel])
+        w.type = np.concatenate([a.type, b.type])
+        w.mol = np.concatenate([a.mol, b.mol + a.n_mol])
+        w.bonds = np.vstack([a.bonds, b.bonds + a.n])
+        w.bends = np.vstack([a.bends, b.bends + a.n])
+        w.frozen = np.concatenate([a.frozen, b.frozen])
+        w.n_mol = a.n_mol + b.n_mol
+        w.rest = dict(a.rest)
+        w.rest.update({(i + a.n, j + a.n): r for (i, j), r in b.rest.items()})
+        w.repel_inside = tuple(sorted(set(a.repel_inside) | set(b.repel_inside)))
+        w.t = a.t
+        w.skin, w.fast, w.field_every = a.skin, a.fast, a.field_every
+        if hasattr(a, "n_start"):
+            w.n_start = a.n_start
+        if hasattr(a, "markers") or hasattr(b, "markers"):
+            w.markers = list(getattr(a, "markers", [])) + [m + a.n for m in getattr(b, "markers", [])]
+        return w
 
     # ---- geometry -------------------------------------------------------
     def delta(self, i, j):

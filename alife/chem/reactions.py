@@ -27,6 +27,7 @@ from .elements import INDEX
 CARB, CA, CAT, TAIL, STAIL = INDEX["carb"], INDEX["Ca"], INDEX["cat"], INDEX["tail"], INDEX["stail"]
 FA_HEAD, FA_ACID = INDEX["fa_head"], INDEX["fa_acid"]
 FUEL, WASTE = INDEX["fuel"], INDEX["waste"]
+PIGMENT = INDEX["pigment"]
 HEADS = (INDEX["head"], FA_HEAD, FA_ACID)
 
 
@@ -352,12 +353,16 @@ class Burn:
     with water, freeing a carboxylic acid's H+. Every `every` steps each fuel bead within `cat_reach`
     of a "cat" bead burns with chance p_burn. Its H+ goes onto the nearest COO- head within
     `h_reach` (COO- -> COOH); with none in reach it doesn't burn (nothing to take the H+).
+    heat (in kT): energy each burn gives out as heat, a kick to the `heat_beads` nearest beads
+    (random directions, so their motion gains `heat` kT on average). The thermostat (water)
+    carries it off within ~100 steps, as real heat leaves a nanometre spot in picoseconds.
     Shortcuts (flagged): the H+ jumps straight to that head (real: diffuses there in nanoseconds);
-    the energy released is not given out as heat yet.
+    burn chance doesn't depend on temperature.
     """
 
-    def __init__(self, every=50, cat_reach=2.5, p_burn=0.1, h_reach=4.0):
+    def __init__(self, every=50, cat_reach=2.5, p_burn=0.1, h_reach=4.0, heat=0.0, heat_beads=8):
         self.every, self.cat_reach, self.p_burn, self.h_reach = every, cat_reach, p_burn, h_reach
+        self.heat, self.heat_beads = heat, heat_beads
         self.burns = 0
 
     def react(self, world):
@@ -383,28 +388,144 @@ class Burn:
                     world.type[base[j]] = FA_ACID
                     world.type[f] = WASTE
                     n += 1
+                    if self.heat:
+                        self.kick(world, p, f)
                     break
         if n:
             self.burns += n
             world._pairs = None
         return n
 
+    def kick(self, world, p, f):
+        """Give `heat` kT of motion to the beads around bead f (heat from the burn)."""
+        heat_kick(world, p, f, self.heat, self.heat_beads)
+
+
+def heat_kick(world, p, f, heat, beads=8, tree=None):
+    """Give `heat` kT of motion to the `beads` beads nearest bead f (random directions)."""
+    near = (tree or cKDTree(p, boxsize=world.L)).query(p[f], k=beads)[1]
+    near = near[~world.frozen[near]]
+    v = world.rng.standard_normal((len(near), world.dim))
+    v *= np.sqrt(2 * heat * world.kT / len(near)) / np.linalg.norm(v, axis=1)[:, None]
+    world.vel[near] += v
+
 
 class PHShocks:
     """pH of the outside water with sudden events: at each (step, jump) the pH jumps by `jump`
     (volcanic gas or acid rain: down; alkaline spring water: up), then drifts back to `base`
     with time constant `relax` steps (mixing with the rest of the pond). Shocks add up.
-    Shortcut (flagged): the whole outside changes at once (one pH number)."""
+    Shortcut (flagged): the whole outside changes at once (one pH number).
+    A third number holds the jump for that many steps before it starts to fade (a long dry
+    spell of volcanic gas, a spring that keeps flowing).
+    """
 
     def __init__(self, base, shocks=(), relax=5000):
-        self.base, self.shocks, self.relax = base, list(shocks), relax
+        self.base, self.relax = base, relax
+        self.shocks = [tuple(s) + (0,) * (3 - len(s)) for s in shocks]   # (step, jump, hold)
 
     @staticmethod
     def parse(text):
-        """"10000:-3,60000:+2" -> [(10000, -3.0), (60000, 2.0)]"""
+        """"10000:-3,60000:+2:20000" -> [(10000, -3.0, 0), (60000, 2.0, 20000)]"""
         if not text:
             return []
-        return [(int(a), float(b)) for a, b in (item.split(":") for item in text.split(","))]
+        out = []
+        for item in text.split(","):
+            v = item.split(":")
+            out.append((int(v[0]), float(v[1]), int(v[2]) if len(v) > 2 else 0))
+        return out
+
+    @staticmethod
+    def random(rate, steps, seed, size=(1.0, 3.0), hold=0):
+        """Random events: on average `rate` per 10k steps (Poisson), each up or down by a size
+        drawn from `size`. Own random stream, so the world's random numbers are untouched."""
+        rng = np.random.default_rng(seed + 7919)
+        out, t = [], 0.0
+        while True:
+            t += rng.exponential(10000 / rate)
+            if t >= steps:
+                return out
+            out.append((int(t), float(rng.choice((-1, 1)) * rng.uniform(*size)), hold))
 
     def __call__(self, t):
-        return self.base + sum(j * np.exp(-(t - s) / self.relax) for s, j in self.shocks if t >= s)
+        ph = self.base
+        for s, j, hold in self.shocks:
+            if t >= s:
+                ph += j if t < s + hold else j * np.exp(-(t - s - hold) / self.relax)
+        return ph
+
+
+class LightPump:
+    """Light-driven H+ pump (bacteriorhodopsin-like): a pigment in the wall absorbs light and uses
+    the energy to push an H+ from the outside water onto a head facing the sealed inside.
+
+    Every `every` steps while the light is on, each pigment bead absorbs a photon with chance
+    p_abs and tries to put an H+ on the nearest COO- facing the inside (`closed`) within `reach`.
+    Cost = energy change of that head (charges, pairing) + kT ln10 (pH - pKa) (taking an H+ from
+    the outside water) - `gain` kT stored from the photon. Kept with chance min(1, exp(-cost/kT)):
+    the more acid the inside already is, the harder the push, so the pump stalls at a gradient.
+    Light: on for the first half of each `period` (day), off the second half (night).
+    Shortcuts (flagged): the pigment is a fatty acid whose head is a pigment bead (all oily, so it
+    sits in the oil); a real pump is a protein spanning the wall, built to point one way. Here the
+    direction comes from "inside heads only". gain 10 kT ~ what real pumps keep of a ~80 kT photon.
+
+    Other pigments: `pigment` = function world -> bead indices that absorb (e.g. dark HCN polymer,
+    nitrogen.dark_beads); then `any_head=True` lets the H+ go onto any nearby COO- (no built-in
+    direction), and gain 0 turns the H+ part off. heat (kT): each absorbed photon also warms the
+    `heat_beads` beads around the pigment (heat_kick); absorbed = photons so far.
+    """
+
+    def __init__(self, every=50, reach=3.5, p_abs=0.2, gain=10.0, period=20000, pka=4.8,
+                 pigment=None, any_head=False, heat=0.0, heat_beads=8):
+        self.every, self.reach, self.p_abs, self.gain, self.period, self.pka = every, reach, p_abs, gain, period, pka
+        self.pigment, self.any_head, self.heat, self.heat_beads = pigment, any_head, heat, heat_beads
+        self.pumps = self.tries = self.absorbed = 0
+
+    def light(self, t):
+        return self.period <= 0 or (t % self.period) < self.period / 2
+
+    def react(self, world, ph, closed, prot):
+        if not self.light(world.t):
+            return 0
+        pig = np.flatnonzero(world.type == PIGMENT) if self.pigment is None else self.pigment(world)
+        pig = pig[world.rng.uniform(size=len(pig)) < self.p_abs]
+        if not len(pig):
+            return 0
+        self.absorbed += len(pig)
+        if self.heat:
+            p = world._wrapped()
+            tree = cKDTree(p, boxsize=world.L)
+            for g in pig:
+                heat_kick(world, p, g, self.heat, self.heat_beads, tree)
+        if self.any_head:
+            closed = np.flatnonzero(world.type == FA_HEAD)
+        if not self.gain or closed is None or not len(closed):
+            return 0
+        heads, (sp, sn), (cpt, cn) = prot.lists(world)
+        where = np.full(world.n, -1)
+        where[heads] = np.arange(len(heads))
+        p = world._wrapped()
+        tree = cKDTree(p[closed], boxsize=world.L)
+        r = world.rules
+        pos = np.ascontiguousarray(world.pos)
+        mu = world.kT * np.log(10) * (ph - self.pka)
+        n = 0
+        for g in pig:
+            dist, k = tree.query(p[g], k=min(12, len(closed)), distance_upper_bound=self.reach)
+            for d, j in zip(np.atleast_1d(dist), np.atleast_1d(k)):
+                if d == np.inf:
+                    break
+                i = closed[j]
+                if world.type[i] != FA_HEAD:
+                    continue
+                self.tries += 1
+                cost = fast._flip_energy(pos, world.box(), where[i], i, FA_ACID, sp, sn, cpt, cn, world.type,
+                                         r.sigma, r.rc, r.eps, r.wc, r.charge, r.coulomb, r.debye,
+                                         r.charge_cutoff, mu - self.gain * world.kT)
+                if cost <= 0 or world.rng.uniform() < np.exp(-cost / world.kT):
+                    world.type[i] = FA_ACID
+                    n += 1
+                break
+        if n:
+            self.pumps += n
+            world._pairs = None
+        return n

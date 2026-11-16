@@ -1,6 +1,8 @@
 """Checks for reactions.Protonation: kernel dE == engine energy change (fast and numpy), and lone
 fatty acids titrate like the textbook (charged = 1 / (1 + 10^(pKa - pH))). Also: an H+ hand-over
 between two heads (dE == engine change), sealed-inside heads (`facing`), and Burn keeping the H+ count.
+Also: Burn heat (kick energy == heat kT), LightPump (inner heads only, more acid), and
+World.rescale(unwrap=True) keeping a clump whole when it is wider than half the box.
 
     python experiments/check_protonation.py
 """
@@ -8,7 +10,9 @@ import numpy as np, sys
 sys.path.insert(0, "experiments"); sys.path.insert(0, ".")
 from alife.chem import fast
 from alife.chem.world import World
-from alife.chem.reactions import Burn, Protonation, FA_HEAD, FA_ACID, FUEL, WASTE
+from alife.chem.reactions import Burn, LightPump, Protonation, FA_HEAD, FA_ACID, FUEL, WASTE, PIGMENT
+from alife.chem.analysis import cluster_labels
+from scipy.spatial import cKDTree
 from alife.chem.elements import INDEX
 from e15_split3d import mixed_vesicle, scatter_fast
 
@@ -87,6 +91,46 @@ for _ in range(40):
     w.step(50); bu.react(w)
 print("burns", bu.burns, "waste", (w.type == WASTE).sum(), "COOH", (w.type == FA_ACID).sum(),
       "fuel left", (w.type == FUEL).sum())
+
+# 6. Burn heat: the kick adds exactly heat kT of |dv|^2 / 2 around the burnt fuel
+bu = Burn(heat=20.0)
+v0 = w.vel.copy()
+bu.kick(w, w._wrapped(), int(np.flatnonzero(w.type == WASTE)[0]))
+dv = w.vel - v0
+print(f"heat kick: sum |dv|^2/2 = {0.5 * (dv ** 2).sum():.4f} (want {20 * w.kT:.4f}), beads {int((dv != 0).any(1).sum())}")
+w.vel = v0
+
+# 7. LightPump: only inner (closed) heads gain H+; none in the dark
+w.type[heads] = FA_HEAD
+inner = Protonation.facing(w)
+outer = np.setdiff1d(heads, inner)
+w.type[w.rng.choice(outer, 10, replace=False)] = PIGMENT   # pigments in the wall
+pu = LightPump(p_abs=1.0, period=1000)
+w._pairs = None
+pr3 = Protonation(ph=5.0)
+w.t = 600   # night (second half of the period)
+dark = pu.react(w, 5.0, inner, pr3)
+w.t = 0
+for _ in range(10):
+    pu.react(w, 5.0, inner, pr3)
+print(f"pump: dark {dark}, light pumps {pu.pumps}, COOH inner {(w.type[inner] == FA_ACID).sum()}, "
+      f"outer {(w.type[outer] == FA_ACID).sum()}")
+
+# 8. rescale(unwrap=True): a vesicle wider than half the box grows without tearing
+for unwrap in (False, True):
+    w = World(box=40.0, kT=1.1, seed=1, dim=3)
+    w.rules.set_oily("stail", 0.85)
+    mixed_vesicle(w, np.array([1.0, 1, 1]), 8.0, 0.5, 0.5)   # ~22 wide > 40 / 2, sits across the walls
+    w.step(300, max_force=50); w.step(200)
+    lab = cluster_labels(w)
+    big = np.flatnonzero(lab[w.mol] == np.bincount(lab).argmax())
+    p = w._wrapped()[big]
+    near = big[cKDTree(p, boxsize=w.L).query_pairs(1.5, output_type="ndarray")]   # touching beads
+    before = np.linalg.norm(w.delta(near[:, 0], near[:, 1]), axis=1)
+    w.rescale(1.05, lab, unwrap=unwrap)
+    after = np.linalg.norm(w.delta(near[:, 0], near[:, 1]), axis=1)
+    print(f"rescale unwrap={unwrap}: {len(near)} touching pairs, "
+          f"stretched > 0.2: {(np.abs(after - before) > 0.2).sum()}")
 
 # 2. lone fatty acids far apart: fraction charged = 1 / (1 + 10^(pKa - pH))
 from alife.chem.molecules import add_lipid3

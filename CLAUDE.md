@@ -125,6 +125,17 @@ energy rules + copying with errors + selection.
   to fa_head, never joins). e16 flags `--sealed-h --fuel --p-burn --shocks --relax --alcohol
   --acid-oily`; logs A_qin/B_qin, A_oh/B_oh, ph, burns. e15 `fa_head(..., alcohol)`.
 
+- Save / carry on / join: `World.save(path, **extra)` / `World.load(path)` (pickle; flow, kT_field,
+  external not saved; carrying on replays bit for bit, `check_save.py`). `World.merge(a, b, axis)`
+  cuts each open at its emptiest slab and puts b after a (a's rules, time, markers first), then
+  step(200, max_force=50). `experiments/merge_worlds.py a b out`, `experiments/hcn_pond.py`
+  (concentrated HCN + NH3 pond, `--like` copies cross-section/kT/rules). e16 `--save-every`,
+  `--start state.pkl` (+ `--steps` more, `--reseed`), `--hcn/--nh3` (adds beads, runs Nitrogen at
+  kT0 = world kT), `--glow` (dark HCN chains `nitrogen.dark_beads` absorb light: `--glow-heat`,
+  photo-acid `--glow-gain`, via `LightPump(pigment=, any_head=True, heat=)`). e16 `--rain` uses
+  `World.rescale(f, group, unwrap=True)` (BFS unwrap; old e13 floods used no unwrap: big networks
+  wider than half the box may have torn a little).
+
 ## Rules of thumb (learned the hard way)
 
 - Lipids: kT 0.6, 3 tails, bend 50. kT 1.0 too hot, 0.4 glassy.
