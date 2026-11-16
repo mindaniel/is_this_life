@@ -303,6 +303,13 @@ energy rules + copying with errors + selection.
   Fatty alcohol 30%: slightly steadier wall. `--acid-oily 0.5`: walls fully neutral, bag squeezes to
   a thick oily shell (volume 900 -> 260); strength likely too high. Heat from fuel not done yet.
 
+- (2026-11-16) e19 (`runs/e19/`, 24 runs): heat, held pH 2/8 (30k), random shocks, rain: no bag
+  breaks. Hand-placed pump (30 pigments in A, light 10k on/off): A's inner charged share 0.2-0.3
+  below B while lit, 6/6, back at night; A ends 30-80 fatty acids below B. e20 (`runs/e20/`,
+  save + merge, 12 runs): pond HCN polymer doubles after joining (~1300 dark beads), touches walls,
+  but heat/photo-acid change nothing in the bags; dilute HCN ("wet") ~50x less polymer.
+  Untested: sticky (oily) HCN polymer that would sit in walls.
+
 ## Next steps (user's choice; ask before starting a big one)
 
 1. (done) e04 vesicles confirmed: real but tiny and short-lived.

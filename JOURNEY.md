@@ -234,3 +234,27 @@ Running themes to come back to on camera:
   drops in acid). Footage idea: the shock plot (outside line jumps, inside line follows late).
   `runs/e18/e18_result.png`, `runs/e18/e18_slice.png`. Also the earlier pH test, rerun with
   3 seeds: same answer (`runs/e17/e17_result.png`).
+
+## Ep 13. Light: a pump in the wall, and pigment made by the pond (2026-11-16)
+
+- **More shocks (the user's ideas):** heat from burning fuel, a pH held at 2 or 8 for a long
+  time, random shocks, rain that doubles the water then dries back. 18 runs, 3 seeds each:
+  no bag broke. Long acid or alkaline spells shake loose more fatty acids, that's all.
+- **A light-driven pump (pigment put in by hand):** 30 pigment heads in bag A's wall push H+
+  into A when light hits them. Day and night (10k steps each): in the day A's inside goes acid,
+  at night it leaks back within ~2000 steps, next day again. 6/6 runs. First time a bag keeps
+  a real pH difference with its pond: light beats the leak that fuel (Ep 12) couldn't. It
+  costs A some wall lipid. Plot `runs/e19/e19_pump.png` (the "day/night" wave is a nice shot).
+- **"Did you code the pigment?" (the user's question):** yes, in that test. So next the pond
+  made its own: HCN polymer, the brown-black tar from Ep 10. Saved a bag world and a puddle
+  with lots of HCN, then poured them together like two waters meeting (new tool: save, carry
+  on, join worlds). The puddle kept making tar; it drifted to the bags and touched the walls.
+  In light it warms its neighbours (and, a guess, makes a little acid). Result: the bags
+  didn't care. Heat spreads out at once; the acid lands outside. The pump only worked because
+  it sat in the wall, pointing in.
+- **The user's rain idea:** maybe life started in rainy times, so HCN never dried out. Tried
+  it: the same HCN spread through all the water made ~50x less tar. Rain helps in other ways
+  (fresh molecules, wet-dry cycles, Ep 4/5), but pigment needs HCN concentrated by drying or
+  freezing, as chemists think.
+- Next idea: real HCN tar is oily/insoluble, so it might sink into walls by itself (not done).
+  Plot `runs/e20/e20_glow.png`.

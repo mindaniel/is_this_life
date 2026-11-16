@@ -870,3 +870,53 @@ Test (`runs/e18/`, e16 setup at pH 5, pairing on, 30k steps, one seed except fue
   step of the lab's vesicle -> oil drop at low pH. The strength 0.5 is a guess and likely too
   strong (real wall pKa ~7-9, here far above), so treat it as a direction, not a number.
 - Plot `runs/e18/e18_result.png` (`runs/e18/e18_plot.py`).
+
+## Light pump, heat, held pH, rain (e19)
+
+24 runs (`runs/e19/`, e16 setup at pH 5, pairing on, sealed insides, no catalyst unless said, 3 seeds each):
+
+| run | what | result |
+|---|---|---|
+| calm | nothing (100k) | both bags sealed, contents 0.68-0.81 left |
+| heat | 100 fuel per bag, A's 20 catalysts burn it, 20 kT heat per burn (30k) | all fuel burnt; no difference A vs B (contents, charge, wall) |
+| pump5 / pump10 | 30 of A's fatty acids get a pigment head; light (on 10k, off 10k) moves H+ into A, keeping 5 or 10 kT per photon (60k) | **A's inside goes acid while lit**: inner charged share 0.2-0.3 below B in 6/6, back to equal within ~2k steps of dark, again next day. A's wall ends 30-80 fatty acids below B (controls -10..+25). Both sealed |
+| holdacid / holdalk | outside pH 2 or 8 held 30k steps (from 10k), then fades (60k) | walls go fully neutral (0.04) or charged (0.96) inside and out; no bag breaks; contents dip a little (min 0.53-0.68), more loose fatty acids (275-381 vs 228) |
+| random | random shocks (1 per 10k, size 1-3 up or down) (100k) | nothing breaks, same as calm |
+| rain | water +50% at 10k, 40k, 70k, evaporates back over 20k (100k) | nothing breaks, same as calm |
+
+The pump is the first lasting pH difference across a wall (fuel in e18 leaked out as fast as it
+was made): it is light-driven, so it beats the leak while lit. It costs the bag lipid (the acid
+inside neutralises inner heads, which then leave or flip). Shortcut (flagged): the pigment was
+put in by hand, and the pump direction (H+ in) is given. Plot `runs/e19/e19_pump.png`
+(`experiments/e20_plot.py`), summary `experiments/e19_sum.py`.
+
+## Pigment made by the pond, next to bags (e20)
+
+The pump pigment above was placed by hand. Here the pigment is made by the pond: HCN polymer
+(brown-black tar, a common prebiotic product, absorbs light broadly). Driver
+`experiments/e20_glow.py`, 3 seeds:
+
+1. Bag world (e16, 20k steps), a concentrated HCN puddle (`hcn_pond.py`, 4000 HCN + 1300 NH3 in
+   24 x 48 x 48, 20k steps: ~600 beads in dark chains, longest ~20) and a plain puddle, each saved.
+2. Joined with `merge_worlds.py` (two waters meeting): bags + HCN puddle ("dry": HCN concentrated
+   by drying), bags + plain puddle ("wet": the same HCN spread through all the water, as constant
+   rain would keep it).
+3. 60k more steps: dark (no light), heat (dark chains of 5+ absorb light, 10 kT of heat each),
+   acid (heat + light puts an H+ on a nearby COO-, speculative), wet (dilute HCN, light + heat).
+
+| version | dark beads at end | longest | touching a wall (mean) | photons absorbed | bags |
+|---|---|---|---|---|---|
+| dark | 1293-1399 | 41-55 | 7 | - | sealed, A = B |
+| heat | 1246-1409 | 32-36 | 6-10 | 116-129k | sealed, A = B |
+| acid | 1214-1339 | 36-41 | 7-9 | 116-123k (4.6-5.5k H+ put on) | sealed, A = B |
+| wet | 15-31 | 5-8 | 0-0.2 | 0.2-0.8k | sealed, A = B |
+
+- The concentrated puddle keeps making polymer after joining (dark beads double in 60k).
+  Dilute HCN makes ~50x less: rain alone doesn't make pigment; it needs concentrating (drying,
+  freezing), as chemists think.
+- The polymer drifts to the bags and touches the walls (a few to ~30 beads at a time), but light
+  on it changes nothing in the bags: the heat spreads out within a few steps, and the extra H+
+  goes on outer heads, which swap with the pond at once. Both bags see it alike, so neither wins.
+- Light slows the polymer a little (heat: chains shorter, 32-36 vs 41-55).
+- Shortcuts (flagged): HCN starts concentrated (no drying step); the photo-acid rule is a guess.
+  Plot `runs/e20/e20_glow.png` (`experiments/e20_plot.py`), summary `experiments/e20_sum.py`.
