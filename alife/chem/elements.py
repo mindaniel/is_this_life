@@ -34,6 +34,9 @@ ELEMENTS = [
     ("nh3",      0,   0.75, 0.0, "#A3C9E8", "ammonia, NH3 (a base: speeds HCN polymer; N source for amino acids)"),
     ("cat",      0,   1.00, 0.0, "#2E8B57", "catalyst: a big folded molecule (short peptide / ribozyme), can't cross a membrane"),
     ("fa_acid",  0,   0.95, 0.0, "#C98BB0", "fatty acid head, COOH (H+ on: neutral). Protonation swaps it with fa_head"),
+    ("fa_oh",    0,   0.95, 0.0, "#E8C3A0", "fatty alcohol head, OH (neutral, never charged): decanol-like co-surfactant"),
+    ("fuel",     0,   1.00, 0.0, "#F2A93B", "fuel: an activated molecule (anhydride / thioester-like); burning it frees an acid H+"),
+    ("waste",    0,   1.00, 0.0, "#8C8C8C", "burnt fuel"),
 ]
 
 NAMES = [row[0] for row in ELEMENTS]
@@ -52,6 +55,8 @@ PAIR_SIZE = {
     ("fa_head", "stail"): 0.95,
     ("fa_acid", "tail"): 0.95,
     ("fa_acid", "stail"): 0.95,
+    ("fa_oh", "tail"): 0.95,
+    ("fa_oh", "stail"): 0.95,
 }
 
 # Attractions that are not oiliness: a COOH head and a COO- head next to each other share
@@ -60,4 +65,5 @@ PAIR_SIZE = {
 # Rules.set_pair_eps. COOH-COOH pairs (dimers) are left out: in water they barely form.
 PAIR_EPS = {
     ("fa_acid", "fa_head"): 0.5,
+    ("fa_oh", "fa_head"): 0.5,   # alcohol OH gives a hydrogen bond to a COO- (why decanol steadies decanoate walls)
 }

@@ -222,3 +222,15 @@ Running themes to come back to on camera:
 - **Footage:** `e16_cats20_s0.mp4` (first try: the bag collapses and leaks);
   `e16fix_cats20_s0.mp4` (fixed: stays sealed, purple patches grow), `runs/e16/fix_result.png`
   (wall A minus wall B, catalyst vs control).
+- **Sudden pH swings, fuel and fatty alcohol (the user's idea, 2026-11-16):** ponds get
+  sudden acid (volcanic gas, acid rain) or alkaline (spring water) events, like heat waves.
+  Built: pH shocks that fade back; bags that keep their own H+ inside; fuel that a catalyst
+  burns, giving off acid inside the bag; fatty alcohol (a never-charged cousin). Result: a
+  shock to pH 2 or 8 never broke a bag. The outside of the wall changed at once, the inside a
+  few thousand steps later: for a while the bag held a pH difference, then it leaked through.
+  The fuel made only a tiny, short acid pulse inside, because the acid leaks out as fast as
+  it's made. Fatty alcohol steadied the wall a little. Making the neutral heads a bit oily
+  squeezed the water out of the bag into a thick oily shell (the lab sees vesicles turn to oil
+  drops in acid). Footage idea: the shock plot (outside line jumps, inside line follows late).
+  `runs/e18/e18_result.png`, `runs/e18/e18_slice.png`. Also the earlier pH test, rerun with
+  3 seeds: same answer (`runs/e17/e17_result.png`).

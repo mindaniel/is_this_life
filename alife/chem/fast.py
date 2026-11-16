@@ -287,36 +287,74 @@ def _dist2(pos, L, i, j):
 
 
 @njit(cache=True)
+def _flip_energy(pos, L, h, i, t1, s_ptr, s_nbr, c_ptr, c_nbr, typ, sigma, rc, eps, wc, charge, coulomb,
+                 debye, cut, dE):
+    """dE + energy change if bead i (head number h) turns into type t1 (pair + screened Coulomb).
+    Summed onto dE in a fixed order, so old runs replay bit for bit."""
+    t0 = typ[i]
+    for m in range(s_ptr[h], s_ptr[h + 1]):
+        j = s_nbr[m]
+        r2 = _dist2(pos, L, i, j)
+        dE += _pair_energy(r2, t1, typ[j], sigma, rc, eps, wc) - _pair_energy(r2, t0, typ[j], sigma, rc, eps, wc)
+    dq = charge[t1] - charge[t0]
+    shift = math.exp(-cut / debye) / cut
+    for m in range(c_ptr[h], c_ptr[h + 1]):
+        j = c_nbr[m]
+        qj = charge[typ[j]]
+        if qj == 0.0:
+            continue
+        dist = max(math.sqrt(_dist2(pos, L, i, j)), 0.5)
+        if dist < cut:
+            dE += coulomb * dq * qj * (math.exp(-dist / debye) / dist - shift)
+    return dE
+
+
+@njit(cache=True)
 def titrate(pos, L, heads, order, s_ptr, s_nbr, c_ptr, c_nbr, typ, t_acid, t_base, sigma, rc, eps, wc,
-            charge, coulomb, debye, cut, kT, mu, u, apply, dE_out):
+            charge, coulomb, debye, cut, kT, mu, u, apply, dE_out, open_):
     """Constant-pH Monte Carlo: try to flip each head in `order` between acid (H+ on) and base
     (H+ off), one at a time (neighbours see earlier flips). Energy change = pair terms with the
     short-list neighbours + screened Coulomb with the charge-list neighbours - mu for losing
     the H+ (mu = kT ln10 (pH - pKa)). Metropolis: accept if u < exp(-dE / kT).
-    apply=False only fills dE_out (for checks). Returns the number of flips."""
-    shift = math.exp(-cut / debye) / cut
+    apply=False only fills dE_out (for checks). open_[h] False: head h faces a sealed inside, no
+    H+ swap with the outside water (skipped, dE_out 0). Returns the number of flips."""
     flips = 0
     for k in range(order.shape[0]):
         h = order[k]
+        if not open_[h]:
+            dE_out[h] = 0.0
+            continue
         i = heads[h]
-        t0 = typ[i]
-        t1 = t_base if t0 == t_acid else t_acid
-        dE = -mu if t1 == t_base else mu
-        for m in range(s_ptr[h], s_ptr[h + 1]):
-            j = s_nbr[m]
-            r2 = _dist2(pos, L, i, j)
-            dE += _pair_energy(r2, t1, typ[j], sigma, rc, eps, wc) - _pair_energy(r2, t0, typ[j], sigma, rc, eps, wc)
-        dq = charge[t1] - charge[t0]
-        for m in range(c_ptr[h], c_ptr[h + 1]):
-            j = c_nbr[m]
-            qj = charge[typ[j]]
-            if qj == 0.0:
-                continue
-            dist = max(math.sqrt(_dist2(pos, L, i, j)), 0.5)
-            if dist < cut:
-                dE += coulomb * dq * qj * (math.exp(-dist / debye) / dist - shift)
+        t1 = t_base if typ[i] == t_acid else t_acid
+        dE = _flip_energy(pos, L, h, i, t1, s_ptr, s_nbr, c_ptr, c_nbr, typ, sigma, rc, eps, wc, charge, coulomb,
+                          debye, cut, -mu if t1 == t_base else mu)
         dE_out[h] = dE
         if apply and (dE <= 0.0 or u[k] < math.exp(-dE / kT)):
             typ[i] = t1
             flips += 1
     return flips
+
+
+@njit(cache=True)
+def hand_over(pos, L, heads, pa, pb, s_ptr, s_nbr, c_ptr, c_nbr, typ, t_acid, t_base, sigma, rc, eps, wc,
+              charge, coulomb, debye, cut, kT, u):
+    """H+ hops from a COOH (head pa[k]) to a nearby COO- (head pb[k]): both flip, the H+ count stays the
+    same (no water swap, so no mu). Energy = flip a, then flip b seeing a's new type. Metropolis.
+    Pairs whose heads changed since the list was made are skipped. Returns the number of hops."""
+    hops = 0
+    for k in range(pa.shape[0]):
+        a, b = pa[k], pb[k]
+        i, j = heads[a], heads[b]
+        if typ[i] != t_acid or typ[j] != t_base:
+            continue
+        dE = _flip_energy(pos, L, a, i, t_base, s_ptr, s_nbr, c_ptr, c_nbr, typ, sigma, rc, eps, wc, charge,
+                          coulomb, debye, cut, 0.0)
+        typ[i] = t_base
+        dE = _flip_energy(pos, L, b, j, t_acid, s_ptr, s_nbr, c_ptr, c_nbr, typ, sigma, rc, eps, wc, charge,
+                          coulomb, debye, cut, dE)
+        if dE <= 0.0 or u[k] < math.exp(-dE / kT):
+            typ[j] = t_acid
+            hops += 1
+        else:
+            typ[i] = t_acid
+    return hops

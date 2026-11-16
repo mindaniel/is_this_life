@@ -160,7 +160,8 @@ def summary(world):
     }
 
 
-def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8, beads=None):
+def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8, beads=None, points=None,
+                   near_water=False):
     """3D vesicle detector: water fully enclosed by one lipid cluster.
 
     Same idea as water_pockets: voxels near a lipid bead are wall, the
@@ -168,6 +169,9 @@ def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8, b
     any other water region of at least `min_volume` voxels whose wall belongs
     mostly to one cluster is a vesicle's inside. Returns (volumes, centres).
     beads (bead indices): also return a bool per bead, True if it sits in one of the pockets.
+    points (n x 3 positions) instead of beads: the same, per point.
+    near_water: judge each bead/point by the nearest water voxel instead of its own voxel (a lipid
+    head sits in the wall voxels; its nearest water is on its own side of the bilayer).
     """
     from scipy import ndimage
 
@@ -178,7 +182,8 @@ def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8, b
     has_tail[world.mol[np.isin(world.type, TAILS)]] = True
     lipid = has_tail[world.mol]
     if not lipid.any():
-        return (np.array([], dtype=int), []) + ((np.zeros(len(beads), bool),) if beads is not None else ())
+        extra = beads if beads is not None else points
+        return (np.array([], dtype=int), []) + ((np.zeros(len(extra), bool),) if extra is not None else ())
     idx = (world._wrapped()[lipid] / cell).astype(int) % m
     wall[tuple(idx.T)] = True
     owner[tuple(idx.T)] = cluster_labels(world)[world.mol[lipid]]
@@ -220,7 +225,12 @@ def water_pockets3(world, cell=1.0, reach=1.0, min_volume=30, one_cluster=0.8, b
             where.append(tuple((mid / (2 * np.pi) * m + 0.5) * cell))
     order = np.argsort(out)[::-1]
     res = np.array(out, dtype=int)[order], [where[k] for k in order]
-    if beads is None:
+    if beads is None and points is None:
         return res
-    vox = tuple(((world._wrapped()[beads] / cell).astype(int) % m).T)
+    xyz = world._wrapped()[beads] if beads is not None else np.asarray(points) % world.L
+    if near_water:
+        wet = np.argwhere(region > 0)
+        _, k = cKDTree((wet + 0.5) * cell, boxsize=m * cell).query(xyz % (m * cell))
+        return res + (np.isin(region[tuple(wet[k].T)], kept),)
+    vox = tuple(((xyz / cell).astype(int) % m).T)
     return res + (np.isin(region[vox], kept),)

@@ -18,6 +18,14 @@ A_left/B_left: how many left it since the last row (Hops: checked every 50 steps
 acid that leaves and comes back between two checks is missed).
 With --ph: fatty-acid heads switch between COOH and COO- (reactions.Protonation; --pka, --hbond
 = COOH-COO- pairing); A_q/B_q = charged share of the fatty-acid heads in each wall.
+--alcohol f: that share of fatty-acid molecules are fatty alcohols (fa_oh, OH head, H-bonds to COO-).
+--sealed-h: heads facing a sealed inside keep their H+ (no swap with the outside water, only
+hops between neighbouring heads); A_qin/B_qin = charged share of those inner heads.
+--fuel N: N fuel beads inside each bag; A's catalyst burns them (reactions.Burn: fuel -> waste,
+its H+ onto a nearby COO-), so A's inside turns acid. Turns on --sealed-h. burns = so far.
+--shocks "t:dpH,...": sudden pH jumps of the outside water, drifting back (--relax steps);
+ph column = outside pH. --acid-oily x: COOH heads a little oily (real COOH is far less
+water-loving than COO-; lets neutral fatty acids slip into the oil, as at low pH in the lab).
 
     python experiments/e16_catalyst.py --steps 200000 --video runs/video/e16_s0.mp4
     python experiments/e16_catalyst.py --cats 0      # control: no catalyst anywhere
@@ -35,12 +43,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from alife.chem.analysis import cluster_labels, water_pockets3   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
-from alife.chem.reactions import HEADS, LipidJoin, Protonation   # noqa: E402
+from alife.chem.reactions import HEADS, Burn, LipidJoin, PHShocks, Protonation   # noqa: E402
 from alife.chem.world import STAIL, TAIL, TAILS, World   # noqa: E402
 from e15_split3d import feed, mixed_vesicle, offset, parse_lengths, scatter_fast, shear_flow   # noqa: E402
 
 FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "A_in", "B_in", "same_cluster", "pockets", "volumes",
-          "loose", "joins", "added", "A_fa", "B_fa", "A_len", "B_len", "A_left", "B_left", "A_q", "B_q"]
+          "loose", "joins", "added", "A_fa", "B_fa", "A_len", "B_len", "A_left", "B_left", "A_q", "B_q",
+          "A_oh", "B_oh", "A_qin", "B_qin", "ph", "burns"]
+FA_OH = INDEX["fa_oh"]
+CHAIN_HEADS = HEADS + (FA_OH,)   # every single-tail head (fatty alcohols too) counts as a chain
 
 
 def build(args):
@@ -49,10 +60,12 @@ def build(args):
     w.rules.set_oily("stail", args.short_oily)
     if args.ph is not None:
         w.rules.set_pair_eps("fa_acid", "fa_head", args.hbond)
+        if args.acid_oily:
+            w.rules.set_oily("fa_acid", args.acid_oily)
     L = np.array(box)
     centres = [np.array([L[0] / 4, L[1] / 2, L[2] / 2]), np.array([3 * L[0] / 4, L[1] / 2, L[2] / 2])]
-    n = sum(mixed_vesicle(w, c, args.radius, args.mix, args.charged, lengths=args.lengths, acid=args.acid)
-            for c in centres)
+    n = sum(mixed_vesicle(w, c, args.radius, args.mix, args.charged, lengths=args.lengths, acid=args.acid,
+                          alcohol=args.alcohol) for c in centres)
     r_in, outer = args.radius - 3.5, args.radius + 2.5
     inside = [lambda p, c=c: np.linalg.norm(offset(w, p, c), axis=1) < r_in for c in centres]
     n_in = int(round(args.osm * 4 / 3 * np.pi * r_in ** 3))
@@ -61,6 +74,8 @@ def build(args):
         start = w.n
         scatter_fast(w, n_in, keep)
         scatter_fast(w, args.cats, keep, name=extra)   # A: catalyst; B: as many plain sugar beads
+        if args.fuel:
+            scatter_fast(w, args.fuel, keep, name="fuel")   # both bags: same fuel, only A can burn it
         w.markers.append(np.arange(start, w.n))
     n_out = int(round(args.osm * (np.prod(L) - 2 * 4 / 3 * np.pi * (outer + 1.0) ** 3)))
     scatter_fast(w, n_out, lambda p: np.all([np.linalg.norm(offset(w, p, c), axis=1) > outer + 1.0
@@ -112,13 +127,13 @@ class Hops:
         return out
 
 
-def measure(w, rx):
+def measure(w, rx, prot=None):
     lab = cluster_labels(w)
     tails = np.isin(w.type, TAILS)
     lipids = np.unique(w.mol[tails])
     lipid_beads = np.flatnonzero(np.isin(w.mol, lipids))
     size = np.bincount(lab[lipids], minlength=lab.max() + 1)
-    heads = np.isin(w.type, HEADS)
+    heads = np.isin(w.type, CHAIN_HEADS)
     double = np.zeros(w.n_mol, bool)
     double[w.mol[w.bonds[rx.head_bonds(w)][:, 0]]] = True
     row = {"step": w.t}
@@ -144,6 +159,12 @@ def measure(w, rx):
         row[f"{k}_len"] = round(float(n_tail[mine].mean()), 3) if mine.any() else 0
         fah = np.isin(w.type, (INDEX["fa_head"], INDEX["fa_acid"])) & (lab[w.mol] == c)
         row[f"{k}_q"] = round(float((w.type[fah] == INDEX["fa_head"]).mean()), 3) if fah.any() else ""
+        row[f"{k}_oh"] = int(((w.type == FA_OH) & (lab[w.mol] == c)).sum())
+        if prot is not None and prot.closed is not None:
+            inn = np.zeros(w.n, bool)
+            inn[prot.closed] = True
+            inn &= fah
+            row[f"{k}_qin"] = round(float((w.type[inn] == INDEX["fa_head"]).mean()), 3) if inn.any() else ""
     return row
 
 
@@ -168,7 +189,7 @@ class Film:
         p = w._wrapped()
         L = np.broadcast_to(w.L, (3,))
         cut = np.abs(p[:, 2] - L[2] / 2) < 1.5
-        tails, heads = np.isin(w.type, TAILS), np.isin(w.type, HEADS)
+        tails, heads = np.isin(w.type, TAILS), np.isin(w.type, CHAIN_HEADS)
         double = np.zeros(w.n_mol, bool)
         double[w.mol[w.bonds[rx.head_bonds(w)][:, 0]]] = True
         two = double[w.mol]
@@ -219,6 +240,13 @@ def main():
                    help="heads switch COOH <-> COO- at this pH (default: fixed, --charged of them COO-)")
     p.add_argument("--pka", type=float, default=4.8, help="pKa of a lone fatty acid in water")
     p.add_argument("--hbond", type=float, default=0.5, help="COOH-COO- pairing strength (tail-tail = 1)")
+    p.add_argument("--alcohol", type=float, default=0.0, help="share of fatty-acid molecules that are fatty alcohols")
+    p.add_argument("--sealed-h", action="store_true", help="heads facing a sealed inside keep their H+ (needs --ph)")
+    p.add_argument("--fuel", type=int, default=0, help="fuel beads inside each bag (A's catalyst burns them)")
+    p.add_argument("--p-burn", type=float, default=0.1, help="burn chance per check for fuel next to a catalyst")
+    p.add_argument("--shocks", default="", help='outside pH jumps "step:dpH,..." e.g. "5000:-3"')
+    p.add_argument("--relax", type=float, default=5000, help="steps for a pH shock to fade (time constant)")
+    p.add_argument("--acid-oily", type=float, default=0.0, help="oiliness of COOH heads (fa_acid)")
     p.add_argument("--feed", type=int, default=0, help="add --batch loose fatty acids every N steps (0 = never)")
     p.add_argument("--batch", type=int, default=1)
     p.add_argument("--shear", type=float, default=0.0)
@@ -232,17 +260,29 @@ def main():
     args = p.parse_args()
     args.lengths = parse_lengths(args.fa_lengths)
     args.acid = "head" if args.ph is None else "fa_acid"
+    if args.fuel:
+        args.sealed_h = True
+    if (args.sealed_h or args.shocks or args.acid_oily) and args.ph is None:
+        p.error("--sealed-h, --fuel, --shocks and --acid-oily need --ph")
 
     name = (f"cats{args.cats}_p{args.p_join:g}_nc{args.no_cat:g}_br{args.p_break:g}_mix{args.mix:g}"
             f"_q{args.charged:g}_f{args.feed}x{args.batch}_sh{args.shear:g}" + ("_fa" if args.fa_only else "")
             + (f"_len{args.length:g}" if args.length else "")
             + ("_mix" + "-".join(map(str, args.lengths[0])) if args.lengths else "")
-            + (f"_ph{args.ph:g}_pka{args.pka:g}_hb{args.hbond:g}" if args.ph is not None else "") + f"_s{args.seed}")
+            + (f"_ph{args.ph:g}_pka{args.pka:g}_hb{args.hbond:g}" if args.ph is not None else "")
+            + (f"_oh{args.alcohol:g}" if args.alcohol else "") + ("_sealH" if args.sealed_h else "")
+            + (f"_fuel{args.fuel}_pb{args.p_burn:g}" if args.fuel else "")
+            + ("_shock" + args.shocks.replace(":", "x").replace(",", "_") + f"_r{args.relax:g}" if args.shocks else "")
+            + (f"_ao{args.acid_oily:g}" if args.acid_oily else "") + f"_s{args.seed}")
     os.makedirs(args.out, exist_ok=True)
     w, n = build(args)
     rx = LipidJoin(p_join=args.p_join, no_cat=args.no_cat, p_break=args.p_break, length=args.length,
                    chains=(STAIL,) if args.fa_only else (TAIL, STAIL))
-    prot = Protonation(args.ph, args.pka, every=rx.every) if args.ph is not None else None
+    prot = Protonation(args.ph, args.pka, every=rx.every, hand_over=args.sealed_h) if args.ph is not None else None
+    ph_of = PHShocks(args.ph, PHShocks.parse(args.shocks), args.relax) if args.ph is not None else None
+    burn = Burn(every=rx.every, p_burn=args.p_burn) if args.fuel else None
+    if args.sealed_h:
+        prot.closed = Protonation.facing(w)
     print(f"{name}: {n} lipids, {w.n} beads", flush=True)
     film = None
     if args.video:
@@ -257,13 +297,23 @@ def main():
         for _ in range(args.every // rx.every):
             w.step(rx.every)
             if prot:
+                prot.ph = ph_of(w.t)
                 prot.react(w)
+            if burn:
+                burn.react(w)
             rx.react(w)
             if args.feed and w.t % args.feed == 0:
-                feed(w, args.batch, 0, clear=1.0, charged=args.charged, lengths=args.lengths, acid=args.acid)
+                feed(w, args.batch, 0, clear=1.0, charged=args.charged, lengths=args.lengths, acid=args.acid,
+                     alcohol=args.alcohol)
             hops.check(w, rx)
-        row = measure(w, rx)
+        row = measure(w, rx, prot)
         row["A_left"], row["B_left"] = hops.take()
+        if prot:
+            row["ph"] = round(prot.ph, 3)
+        if burn:
+            row["burns"] = burn.burns
+        if args.sealed_h:
+            prot.closed = Protonation.facing(w)   # who faces a sealed inside, refreshed every row
         writer.writerow(row)
         log.flush()
         if film:

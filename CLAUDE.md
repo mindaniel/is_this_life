@@ -118,6 +118,12 @@ energy rules + copying with errors + selection.
   Coulomb, pair energy). `elements.PAIR_EPS` = per-pair attraction (fa_acid-fa_head hydrogen
   bond), `Rules.set_pair_eps`. e16 `--ph --pka --hbond`, logs A_q/B_q (charged share).
   `experiments/check_protonation.py` = energy + titration-curve checks.
+  `Protonation.closed` (heads facing a sealed inside: no swap with outside, only `hand_over` hops
+  between neighbouring heads, `fast.hand_over`); `Protonation.facing(w)` finds them
+  (`water_pockets3(points=, near_water=True)`). `reactions.Burn` (cat burns fuel -> waste, H+ onto
+  a COO-), `reactions.PHShocks` (outside pH jumps + relax). Bead `fa_oh` = fatty alcohol (H-bond
+  to fa_head, never joins). e16 flags `--sealed-h --fuel --p-burn --shocks --relax --alcohol
+  --acid-oily`; logs A_qin/B_qin, A_oh/B_oh, ph, burns. e15 `fa_head(..., alcohol)`.
 
 ## Rules of thumb (learned the hard way)
 
@@ -278,7 +284,13 @@ energy rules + copying with errors + selection.
 - (2026-11-15) e17 protonation (`runs/e17/`, 6 x 30k, pH 4/5/6.5 x pairing 0/1, no catalyst):
   all sealed. Pairing cuts loose fatty acids (225-316 vs 326-382) but leaving per 1000 steps is
   higher (25% vs 20%) with trips half as long; no half-charge sweet spot. Walls half charged at
-  pH ~5 (real 7-9: no low-dielectric interface), so compare by charged share. One seed.
+  pH ~5 (real 7-9: no low-dielectric interface), so compare by charged share. 3 seeds agree.
+
+- (2026-11-16) e18 (`runs/e18/`, 30k): pH shocks to 2 or 8 never break a bag; inner heads lag the
+  outer ones ~2-3k steps (brief pH difference, then leaks by flip-flop). Fuel burnt by A's catalyst
+  gives only a small short acid dip inside (0.04-0.06 vs B, 2/3 seeds): H+ leaks out as fast as made.
+  Fatty alcohol 30%: slightly steadier wall. `--acid-oily 0.5`: walls fully neutral, bag squeezes to
+  a thick oily shell (volume 900 -> 260); strength likely too high. Heat from fuel not done yet.
 
 ## Next steps (user's choice; ask before starting a big one)
 

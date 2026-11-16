@@ -26,6 +26,7 @@ from .elements import INDEX
 
 CARB, CA, CAT, TAIL, STAIL = INDEX["carb"], INDEX["Ca"], INDEX["cat"], INDEX["tail"], INDEX["stail"]
 FA_HEAD, FA_ACID = INDEX["fa_head"], INDEX["fa_acid"]
+FUEL, WASTE = INDEX["fuel"], INDEX["waste"]
 HEADS = (INDEX["head"], FA_HEAD, FA_ACID)
 
 
@@ -235,11 +236,19 @@ class Protonation:
     nanoseconds, far quicker than lipids move, so a full pass each check is fair.
     Shortcut (flagged): H+ and counter-ions are implicit (pH is one number everywhere; salt
     screening as before).
+
+    Sealed insides (`closed` = bead numbers of heads facing water inside a vesicle, set by the
+    caller, e.g. with `facing`): those heads don't swap H+ with the outside water. A bag's
+    inside holds ~0 free H+ (pH 5 in 1000 nm^3 is 0.006 ions), so its H+ live on its heads;
+    with `hand_over` they hop between neighbouring heads (COOH -> COO-, count kept).
+    Defaults (closed None, hand_over False) give the old behaviour bit for bit.
     """
 
-    def __init__(self, ph, pka=4.8, every=50, sweeps=1):
+    def __init__(self, ph, pka=4.8, every=50, sweeps=1, hand_over=False, hop_reach=1.5):
         self.ph, self.pka, self.every, self.sweeps = ph, pka, every, sweeps
-        self.flips = 0
+        self.hand_over, self.hop_reach = hand_over, hop_reach
+        self.closed = None
+        self.flips = self.hops = 0
 
     def lists(self, world):
         """Fatty-acid heads, and their neighbours as CSR lists: short (pair forces) and charge."""
@@ -279,13 +288,51 @@ class Protonation:
         mu = world.kT * np.log(10) * (self.ph - self.pka)
         dE = np.zeros(len(heads))
         typ = world.type if apply else world.type.copy()
-        n = fast.titrate(np.ascontiguousarray(world.pos), world.box(), heads, order, sp, sn, cpt, cn, typ,
+        open_ = np.ones(len(heads), bool) if self.closed is None else ~np.isin(heads, self.closed)
+        pos = np.ascontiguousarray(world.pos)
+        n = fast.titrate(pos, world.box(), heads, order, sp, sn, cpt, cn, typ,
                          FA_ACID, FA_HEAD, r.sigma, r.rc, r.eps, r.wc, r.charge, r.coulomb, r.debye,
-                         r.charge_cutoff, world.kT, mu, u, apply, dE)
+                         r.charge_cutoff, world.kT, mu, u, apply, dE, open_)
+        if apply and self.hand_over:
+            a = np.repeat(np.arange(len(heads)), np.diff(sp))   # head pairs from the short list
+            where = np.full(world.n, -1)
+            where[heads] = np.arange(len(heads))
+            b = where[sn]
+            ok = b >= 0
+            a, b = a[ok], b[ok]
+            d = world.pos[heads[a]] - world.pos[heads[b]]
+            d -= world.box() * np.round(d / world.box())
+            ok = (d ** 2).sum(1) < self.hop_reach ** 2
+            a, b = a[ok], b[ok]
+            k = world.rng.permutation(len(a))
+            h = fast.hand_over(pos, world.box(), heads, a[k], b[k], sp, sn, cpt, cn, typ, FA_ACID, FA_HEAD,
+                               r.sigma, r.rc, r.eps, r.wc, r.charge, r.coulomb, r.debye, r.charge_cutoff,
+                               world.kT, world.rng.uniform(size=len(a)))
+            self.hops += h
+            n += h
         if n:
             self.flips += n
             world._pairs = None   # the charged-pair list changed
         return dE
+
+    @staticmethod
+    def facing(world, step=0.5):
+        """Fatty-acid heads (COOH or COO-) facing water sealed inside a vesicle: the water nearest
+        to a point `step` beyond the head (away from its first tail bead) is a pocket (water_pockets3)."""
+        from .analysis import water_pockets3
+        heads = np.flatnonzero(np.isin(world.type, (FA_HEAD, FA_ACID)))
+        if not len(heads):
+            return heads
+        tail = np.full(world.n, -1)
+        bonds = world.bonds
+        for x, y in ((0, 1), (1, 0)):
+            ok = np.isin(world.type[bonds[:, y]], (TAIL, STAIL))
+            tail[bonds[ok, x]] = bonds[ok, y]
+        d = world.pos[heads] - world.pos[tail[heads]]
+        d -= world.box() * np.round(d / world.box())
+        pts = world.pos[heads] + step * d / np.linalg.norm(d, axis=1)[:, None]
+        inside = water_pockets3(world, points=pts, near_water=True)[2]
+        return heads[inside]
 
     def react(self, world):
         for _ in range(self.sweeps):
@@ -296,3 +343,68 @@ class Protonation:
         t = world.type if beads is None else world.type[beads]
         n = np.isin(t, (FA_HEAD, FA_ACID)).sum()
         return float((t == FA_HEAD).sum() / n) if n else 0.0
+
+
+class Burn:
+    """A catalyst burns fuel: fuel -> waste + H+ (energy goes downhill, never back).
+
+    Real example: an activated molecule (an acid anhydride or a thioester) that a catalyst splits
+    with water, freeing a carboxylic acid's H+. Every `every` steps each fuel bead within `cat_reach`
+    of a "cat" bead burns with chance p_burn. Its H+ goes onto the nearest COO- head within
+    `h_reach` (COO- -> COOH); with none in reach it doesn't burn (nothing to take the H+).
+    Shortcuts (flagged): the H+ jumps straight to that head (real: diffuses there in nanoseconds);
+    the energy released is not given out as heat yet.
+    """
+
+    def __init__(self, every=50, cat_reach=2.5, p_burn=0.1, h_reach=4.0):
+        self.every, self.cat_reach, self.p_burn, self.h_reach = every, cat_reach, p_burn, h_reach
+        self.burns = 0
+
+    def react(self, world):
+        fuel = np.flatnonzero(world.type == FUEL)
+        cat = np.flatnonzero(world.type == CAT)
+        if not len(fuel) or not len(cat):
+            return 0
+        p = world._wrapped()
+        near = cKDTree(p[cat], boxsize=world.L).query(p[fuel], distance_upper_bound=self.cat_reach)[0] < np.inf
+        fuel = fuel[near]
+        if not len(fuel):
+            return 0
+        fuel = fuel[world.rng.uniform(size=len(fuel)) < self.p_burn]
+        base = np.flatnonzero(world.type == FA_HEAD)
+        if not len(fuel) or not len(base):
+            return 0
+        tree = cKDTree(p[base], boxsize=world.L)
+        n = 0
+        for f in fuel:
+            dist, k = tree.query(p[f], k=min(8, len(base)), distance_upper_bound=self.h_reach)
+            for d, j in zip(np.atleast_1d(dist), np.atleast_1d(k)):
+                if d < np.inf and world.type[base[j]] == FA_HEAD:
+                    world.type[base[j]] = FA_ACID
+                    world.type[f] = WASTE
+                    n += 1
+                    break
+        if n:
+            self.burns += n
+            world._pairs = None
+        return n
+
+
+class PHShocks:
+    """pH of the outside water with sudden events: at each (step, jump) the pH jumps by `jump`
+    (volcanic gas or acid rain: down; alkaline spring water: up), then drifts back to `base`
+    with time constant `relax` steps (mixing with the rest of the pond). Shocks add up.
+    Shortcut (flagged): the whole outside changes at once (one pH number)."""
+
+    def __init__(self, base, shocks=(), relax=5000):
+        self.base, self.shocks, self.relax = base, list(shocks), relax
+
+    @staticmethod
+    def parse(text):
+        """"10000:-3,60000:+2" -> [(10000, -3.0), (60000, 2.0)]"""
+        if not text:
+            return []
+        return [(int(a), float(b)) for a, b in (item.split(":") for item in text.split(","))]
+
+    def __call__(self, t):
+        return self.base + sum(j * np.exp(-(t - s) / self.relax) for s, j in self.shocks if t >= s)

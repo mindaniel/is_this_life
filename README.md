@@ -797,17 +797,17 @@ Shortcuts (flagged): H+ and counter-ions implicit, pH is one number everywhere. 
 heads sit at a low-dielectric oil edge where charges push much harder; implicit water can't
 do that. So read results by charged share, not lab pH.
 
-Test (`runs/e17/`, e16 setup without catalyst, 25:50:25 lengths, 30k steps, one seed,
-averages after 10k, both bags):
+Test (`runs/e17/`, e16 setup without catalyst, 25:50:25 lengths, 30k steps, 3 seeds (mean;
+seeds agree within ~10%), averages after 10k, both bags):
 
 | pH | pairing | charged share | loose fatty acids | leaving per 1000 steps | trip out (steps) |
 |---|---|---|---|---|---|
-| 4 | off | 0.12 | 326 | 20% | 860 |
-| 4 | on | 0.30 | 232 | 25% | 470 |
-| 5 | off | 0.47 | 337 | 21% | 870 |
-| 5 | on | 0.48 | 225 | 26% | 440 |
-| 6.5 | off | 0.94 | 382 | 16% | 1310 |
-| 6.5 | on | 0.77 | 316 | 21% | 810 |
+| 4 | off | 0.12 | 305 | 20% | 810 |
+| 4 | on | 0.30 | 218 | 24% | 450 |
+| 5 | off | 0.47 | 323 | 19% | 890 |
+| 5 | on | 0.48 | 217 | 25% | 440 |
+| 6.5 | off | 0.94 | 364 | 16% | 1240 |
+| 6.5 | on | 0.77 | 301 | 20% | 790 |
 
 - All 12 bags sealed to the end, contents 0.66-0.74 left.
 - **Pairing keeps more fatty acids in the wall** (loose 225-316 vs 326-382), and pulls
@@ -817,5 +817,56 @@ averages after 10k, both bags):
   in; it doesn't hold the ones already in it tighter.
 - No sweet spot at half charge in leaving. Fully charged walls (pH 6.5, no pairing) have the
   most fatty acids out, but each trip lasts longest (charged loners are pushed off the
-  charged wall). One seed: differences of a few % are inside noise.
+  charged wall). Same picture in all 3 seeds (first shown with one seed, 2026-11-15).
 - Plot `runs/e17/e17_result.png` (`runs/e17/e17_plot.py`).
+
+## pH shocks, fuel that releases acid, fatty alcohol (e18)
+
+The user's question: real ponds get sudden pH swings (volcanic gas or acid rain: down; an
+alkaline spring: up), like heat waves and cold snaps. Additions:
+
+- **Sealed insides keep their H+** (`--sealed-h`). A bag's inside holds almost no free H+
+  (pH 5 in a 1000 nm^3 bag = 0.006 ions), so the H+ in there sit on the heads. Heads facing
+  sealed water (`Protonation.facing`: a point just past the head, away from its tail, is in a
+  pocket) no longer swap H+ with the outside; they only pass it to a neighbouring head (COOH ->
+  COO-, `fast.hand_over`, count kept). H+ crosses the wall the real way for fatty acids: a
+  neutral fatty acid flips to the other side or leaves.
+- **pH shocks** (`--shocks "5000:-3"`, `--relax 5000`): the outside pH jumps, then drifts
+  back as the pond mixes (`reactions.PHShocks`).
+- **Fuel** (`--fuel N`): N fuel beads in each bag; A's catalyst burns them (`reactions.Burn`:
+  fuel -> waste, its H+ onto the nearest COO- head). Real example: an acid anhydride or
+  thioester split by a catalyst.
+- **Fatty alcohol** (`--alcohol 0.3`): a never-charged fatty molecule (decanol-like, `fa_oh`)
+  whose OH head H-bonds to COO-. Lab mixes of fatty acid + fatty alcohol make sturdier
+  vesicles that tolerate more salt and pH.
+- **Oily COOH** (`--acid-oily x`): COOH heads a little oily (real COOH is far less
+  water-loving than COO-).
+
+Checks (`check_protonation.py`): hand-over energy = engine change (3e-12); all-sealed hand-overs
+keep the H+ count (299 -> 299, 3830 hops); every burn = one waste = one new COOH; the facing
+finder picks the inner leaflet; old runs replay bit for bit.
+
+Shortcuts (flagged): one outside pH everywhere; burnt fuel's H+ jumps straight to a head;
+the fuel's energy is not given out as heat yet; inner heads re-found every 1000 steps.
+
+Test (`runs/e18/`, e16 setup at pH 5, pairing on, 30k steps, one seed except fuel x3):
+
+- **Shocks never break a bag** (pH 2 or 8 for a few thousand steps): contents 0.71-0.75 left in
+  every run, same as calm. The wall's outer heads follow the outside at once (charged share
+  0.48 -> 0.16 at pH 2, -> 0.82 at pH 8); **heads facing the inside lag ~2000-3000 steps**, then
+  follow (0.47 -> 0.22, 0.49 -> 0.76): the bag briefly has a pH difference across its wall, then
+  H+ leaks through by flipping fatty acids. Loose fatty acids a little up after the alkaline
+  shock (279 vs 242 at 30k).
+- **Fuel: a small, short acid pulse.** All 100 fuel burn within ~10k steps. A's inner heads
+  are 0.04-0.06 less charged than B's while burning (seeds 0 and 1; seed 2 about none), then
+  equal again; the no-catalyst controls wander +-0.04. 100 H+ kept inside would lower it by
+  ~0.25, so the H+ leaks out about as fast as it's made. No effect on wall size.
+- **Fatty alcohol (30%)**: stays in the walls (~280 per wall), charged share a little higher
+  (0.54 vs 0.48: the OH H-bond steadies COO-), leaving per fatty acid a little lower (21% vs
+  24%), loose the same. Survives both shocks like the plain wall. Mild, not a fortress.
+- **Oily COOH (0.5)**: the walls go fully neutral (0.1% charged: the oil pulls COOH in, which
+  shifts the pKa up far), leaving stops (~1%), and the bag squeezes its water out (pocket volume
+  900 -> 260) into a thick oily shell with a small core (`runs/e18/e18_slice.png`), the first
+  step of the lab's vesicle -> oil drop at low pH. The strength 0.5 is a guess and likely too
+  strong (real wall pKa ~7-9, here far above), so treat it as a direction, not a number.
+- Plot `runs/e18/e18_result.png` (`runs/e18/e18_plot.py`).
