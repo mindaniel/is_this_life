@@ -472,22 +472,30 @@ class LightPump:
     nitrogen.dark_beads); then `any_head=True` lets the H+ go onto any nearby COO- (no built-in
     direction), and gain 0 turns the H+ part off. heat (kT): each absorbed photon also warms the
     `heat_beads` beads around the pigment (heat_kick); absorbed = photons so far.
+    sun (sun.Sun): smooth day instead of on/off, absorb chance p_abs x brightness; then gain and heat
+    are in kT at Earth's temperature (sun.kT_earth), since a photon's energy doesn't change with
+    the pond's temperature.
     """
 
     def __init__(self, every=50, reach=3.5, p_abs=0.2, gain=10.0, period=20000, pka=4.8,
-                 pigment=None, any_head=False, heat=0.0, heat_beads=8):
+                 pigment=None, any_head=False, heat=0.0, heat_beads=8, sun=None):
         self.every, self.reach, self.p_abs, self.gain, self.period, self.pka = every, reach, p_abs, gain, period, pka
         self.pigment, self.any_head, self.heat, self.heat_beads = pigment, any_head, heat, heat_beads
+        self.sun = sun
         self.pumps = self.tries = self.absorbed = 0
 
     def light(self, t):
+        if self.sun:
+            return self.sun.brightness(t) > 0
         return self.period <= 0 or (t % self.period) < self.period / 2
 
     def react(self, world, ph, closed, prot):
         if not self.light(world.t):
             return 0
         pig = np.flatnonzero(world.type == PIGMENT) if self.pigment is None else self.pigment(world)
-        pig = pig[world.rng.uniform(size=len(pig)) < self.p_abs]
+        p_abs = self.p_abs * self.sun.brightness(world.t) if self.sun else self.p_abs
+        pig = pig[world.rng.uniform(size=len(pig)) < p_abs]
+        unit = self.sun.kT_earth / world.kT if self.sun else 1.0   # gain, heat: in kT at Earth's temperature
         if not len(pig):
             return 0
         self.absorbed += len(pig)
@@ -495,7 +503,7 @@ class LightPump:
             p = world._wrapped()
             tree = cKDTree(p, boxsize=world.L)
             for g in pig:
-                heat_kick(world, p, g, self.heat, self.heat_beads, tree)
+                heat_kick(world, p, g, self.heat * unit, self.heat_beads, tree)
         if self.any_head:
             closed = np.flatnonzero(world.type == FA_HEAD)
         if not self.gain or closed is None or not len(closed):
@@ -520,7 +528,7 @@ class LightPump:
                 self.tries += 1
                 cost = fast._flip_energy(pos, world.box(), where[i], i, FA_ACID, sp, sn, cpt, cn, world.type,
                                          r.sigma, r.rc, r.eps, r.wc, r.charge, r.coulomb, r.debye,
-                                         r.charge_cutoff, mu - self.gain * world.kT)
+                                         r.charge_cutoff, mu - self.gain * unit * world.kT)
                 if cost <= 0 or world.rng.uniform() < np.exp(-cost / world.kT):
                     world.type[i] = FA_ACID
                     n += 1

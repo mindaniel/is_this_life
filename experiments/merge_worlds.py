@@ -22,9 +22,12 @@ def main():
     p.add_argument("out")
     p.add_argument("--axis", type=int, default=0)
     p.add_argument("--seed", type=int, default=0, help="random stream of the joined world")
+    p.add_argument("--kT", type=float, default=None, help="set both worlds to this temperature first")
     args = p.parse_args()
     a, _ = World.load(args.a)
     b, _ = World.load(args.b)
+    if args.kT:
+        a.kT = b.kT = args.kT
     w = World.merge(a, b, axis=args.axis, seed=args.seed)
     t = w.t
     w.step(200, max_force=50)

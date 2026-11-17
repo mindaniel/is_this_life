@@ -49,6 +49,10 @@ Logs hcn (lone), dark (beads in dark chains), longest, dark_wall (dark beads tou
 absorbed (photons so far), glow_acid (H+ put on by light so far).
 --tar-len n: HCN chains of n or more turn into "tar" beads (long HCN polymer is insoluble), oiliness
 --tar-oily (a guess). Logs dark_tail (dark beads touching a lipid tail: sunk into a wall).
+--sun-d d: a smooth sun (alife/chem/sun.py) for a planet at distance d (Earth = 1): light rises and
+falls through the day (brightness 1/d^2), the temperature follows (mean --kT-earth x d^-0.5, small
+afternoon-peaked swing), set every 50 steps. Reaction rates keep their Earth calibration
+(kT0 = --kT-earth), so hotter = faster. Logs kT and sun (brightness).
 
     python experiments/e16_catalyst.py --steps 200000 --video runs/video/e16_s0.mp4
     python experiments/e16_catalyst.py --cats 0      # control: no catalyst anywhere
@@ -68,13 +72,14 @@ from alife.chem.analysis import cluster_labels, water_pockets3   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
 from alife.chem.nitrogen import HCN, NH3, TAR, Nitrogen, census, dark_beads   # noqa: E402
 from alife.chem.reactions import HEADS, PIGMENT, Burn, LightPump, LipidJoin, PHShocks, Protonation   # noqa: E402
+from alife.chem.sun import Sun   # noqa: E402
 from alife.chem.world import STAIL, TAIL, TAILS, World   # noqa: E402
 from e15_split3d import feed, mixed_vesicle, offset, parse_lengths, scatter_fast, shear_flow   # noqa: E402
 
 FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "A_in", "B_in", "same_cluster", "pockets", "volumes",
           "loose", "joins", "added", "A_fa", "B_fa", "A_len", "B_len", "A_left", "B_left", "A_q", "B_q",
           "A_oh", "B_oh", "A_qin", "B_qin", "ph", "burns", "pumps", "light", "water",
-          "hcn", "dark", "longest", "dark_wall", "dark_tail", "absorbed", "glow_acid"]
+          "hcn", "dark", "longest", "dark_wall", "dark_tail", "absorbed", "glow_acid", "kT", "sun"]
 FA_OH = INDEX["fa_oh"]
 CHAIN_HEADS = HEADS + (FA_OH,)   # every single-tail head (fatty alcohols too) counts as a chain
 
@@ -374,6 +379,8 @@ def main():
     p.add_argument("--glow-gain", type=float, default=0.0, help="photo-acid: kT per photon to put H+ on a COO- (0 = off)")
     p.add_argument("--tar-len", type=int, default=0, help="HCN chains of this length or more turn into oily tar (0 = off)")
     p.add_argument("--tar-oily", type=float, default=0.5, help="oiliness of tar beads (a guess)")
+    p.add_argument("--sun-d", type=float, default=0.0, help="smooth sun, planet at this distance (Earth = 1; 0 = off)")
+    p.add_argument("--kT-earth", type=float, default=1.1, help="temperature at distance 1")
     p.add_argument("--feed", type=int, default=0, help="add --batch loose fatty acids every N steps (0 = never)")
     p.add_argument("--batch", type=int, default=1)
     p.add_argument("--shear", type=float, default=0.0)
@@ -408,6 +415,7 @@ def main():
                if args.rain else "")
             + (f"_hcn{args.hcn}_nh{args.nh3}" if args.hcn or args.nh3 else "")
             + (f"_tar{args.tar_len}o{args.tar_oily:g}" if args.tar_len else "")
+            + (f"_sun{args.sun_d:g}" if args.sun_d else "")
             + (f"_glow{args.dark_len}_h{args.glow_heat:g}_g{args.glow_gain:g}_pa{args.p_abs:g}_P{args.light_period}"
                if args.glow else "") + f"_s{args.seed}")
     if args.start:
@@ -431,7 +439,8 @@ def main():
     nit = None
     if (w.type == HCN).any() or (w.type == NH3).any():
         w.repel_inside = tuple(sorted(set(w.repel_inside) | {HCN, NH3, TAR}))   # floppy chains: no folding through
-        nit = Nitrogen(every=50, kT0=w.kT, tar_len=args.tar_len or None)   # rates as calibrated, at this temperature
+        nit = Nitrogen(every=50, kT0=args.kT_earth if args.sun_d else w.kT,   # rates as calibrated, at this temperature
+                       tar_len=args.tar_len or None)
         if args.tar_len:
             w.rules.set_oily("tar", args.tar_oily)
     end = w.t + args.steps
@@ -445,12 +454,13 @@ def main():
         print("random shocks:", shocks, flush=True)
     ph_of = PHShocks(args.ph, shocks, args.relax) if args.ph is not None else None
     burn = Burn(every=rx.every, p_burn=args.p_burn, heat=args.heat) if args.fuel else None
+    sun = Sun(args.sun_d, args.light_period, args.kT_earth) if args.sun_d else None
     pump = LightPump(every=rx.every, p_abs=args.p_abs, gain=args.pump_gain, period=args.light_period,
-                     pka=args.pka) if args.pump else None
+                     pka=args.pka, sun=sun) if args.pump else None
     rain = Rain(Rain.parse(args.rain), args.rain_over, args.evap) if args.rain else None
     glow = LightPump(every=rx.every, p_abs=args.p_abs, gain=args.glow_gain, period=args.light_period, pka=args.pka,
                      pigment=lambda w: dark_beads(w, args.dark_len), any_head=True,
-                     heat=args.glow_heat) if args.glow else None
+                     heat=args.glow_heat, sun=sun) if args.glow else None
     if glow and args.glow_gain and prot is None:
         p.error("--glow-gain needs --ph")
     if args.sealed_h:
@@ -469,6 +479,8 @@ def main():
     while w.t < end:
         for _ in range(args.every // rx.every):
             w.step(rx.every)
+            if sun:
+                w.kT = sun.kT(w.t)
             if prot:
                 prot.ph = ph_of(w.t)
                 prot.react(w)
@@ -497,6 +509,8 @@ def main():
             row["pumps"], row["light"] = pump.pumps, int(pump.light(w.t))
         if rain:
             row["water"] = round(rain.now, 4)
+        if sun:
+            row["kT"], row["sun"] = round(w.kT, 4), round(sun.brightness(w.t), 3)
         if nit:
             row.update(nitrogen_row(w, glow, args.dark_len))
         if args.sealed_h:

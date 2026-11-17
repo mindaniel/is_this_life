@@ -32,6 +32,8 @@ def main():
     p.add_argument("--x", type=float, default=24.0, help="pond length along x (the seam axis)")
     p.add_argument("--box", type=float, default=48.0, help="y and z size (ignored with --like)")
     p.add_argument("--kT", type=float, default=1.1, help="temperature (ignored with --like)")
+    p.add_argument("--kT0", type=float, default=None, help="temperature the reaction rates are calibrated at "
+                                                          "(default: this pond's; set it to let heat speed them)")
     p.add_argument("--hcn", type=int, default=4000)
     p.add_argument("--nh3", type=int, default=1300)
     p.add_argument("--osm", type=float, default=0.15, help="sugar osmolyte per unit volume")
@@ -54,7 +56,7 @@ def main():
     scatter_fast(w, args.nh3, anywhere, name="nh3")
     w.step(200, max_force=50)
     w.t = 0
-    nit = Nitrogen(every=50, kT0=w.kT)   # rates as calibrated, at this temperature
+    nit = Nitrogen(every=50, kT0=args.kT0 or w.kT)   # rates as calibrated, at kT0
     t0 = time.time()
     while w.t < args.steps:
         w.step(50)
