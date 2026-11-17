@@ -258,3 +258,11 @@ Running themes to come back to on camera:
   freezing, as chemists think.
 - Next idea: real HCN tar is oily/insoluble, so it might sink into walls by itself (not done).
   Plot `runs/e20/e20_glow.png`.
+- **Tar that sinks (2026-11-17, the user: "make the pigment, not a shortcut"):** real HCN tar
+  doesn't dissolve, so long chains became oily "tar". Nothing placed it. It sank into the bag
+  walls by itself, more into one bag than the other, by chance. Then in daylight that bag's inside
+  went acid, and at night it leaked back, in all 6 lit runs; in the dark, nothing. No direction was
+  coded: acid made on the outside of the wall washes into the pond, acid made on the inside is
+  trapped. The first pump-like behaviour that nobody built. Weaker than the hand-made pump (about a
+  third). Guesses: how oily the tar is, and that light on it makes acid. Plot `runs/e21/e21_tar.png`
+  (the day/night dips are the shot for the episode).

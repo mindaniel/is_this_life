@@ -313,6 +313,10 @@ energy rules + copying with errors + selection.
   but heat/photo-acid change nothing in the bags; dilute HCN ("wet") ~50x less polymer.
   Untested: sticky (oily) HCN polymer that would sit in walls.
 
+- (2026-11-17) e21 (`runs/e21/`, tar_len 5, oily 0.5/0.8, from e20 dry joins, 9 runs): tar sinks into walls
+  (84-172 beads touching tails vs ~7 non-oily), unevenly; in light the tar-rich bag's inside goes acid by day
+  (-0.05..-0.09 charged share vs other bag, dips to -0.17), 6/6; dark control ~0. Emergent crude pump.
+
 ## Next steps (user's choice; ask before starting a big one)
 
 1. (done) e04 vesicles confirmed: real but tiny and short-lived.

@@ -920,3 +920,32 @@ The pump pigment above was placed by hand. Here the pigment is made by the pond:
 - Light slows the polymer a little (heat: chains shorter, 32-36 vs 41-55).
 - Shortcuts (flagged): HCN starts concentrated (no drying step); the photo-acid rule is a guess.
   Plot `runs/e20/e20_glow.png` (`experiments/e20_plot.py`), summary `experiments/e20_sum.py`.
+
+## Oily HCN tar sinks into walls (e21)
+
+e20's pond-made polymer floated past the bags. Real long HCN polymer doesn't dissolve (a dark
+insoluble tar), so here HCN chains of 5+ turn into a `tar` bead (`Nitrogen(tar_len=5)`), oiliness
+0.5 or 0.8 (a guess; real HCN polymer is insoluble but full of N groups, so probably less oily than
+a lipid tail). Nothing places it: it grows in the puddle and goes wherever physics takes it.
+Start: e20's joined worlds (bags + concentrated HCN puddle), 60k steps, 3 seeds
+(`experiments/e21_tar.py`); light = heat + photo-acid on any nearby COO- head, no direction given.
+
+| version | tar touching wall tails (last 30k) | tar in wall A / B at end | inside charge, tar-rich bag minus other, day / night |
+|---|---|---|---|
+| tar 0.5, light | 84-104 | 41/17, 63/24, 5/56 | -0.05..-0.08 / -0.01..-0.04 |
+| tar 0.8, light | 113-138 | 58/9, 70/7, 12/60 | -0.05..-0.09 / -0.01..-0.04 |
+| tar 0.8, dark | 156-172 | 42/10, 15/5, 16/39 | about 0 (-0.01..+0.01) |
+
+- **The tar sinks into the bag walls by itself** (e20, not oily: ~7 beads touching any lipid).
+  It keeps piling in (to ~150-250 by the end), unevenly: one bag gets 2-10x more than the other.
+- **In light, the bag with more tar goes acid inside, by day only**, 6/6 runs; the effect grows as
+  the tar piles in (dips to -0.10..-0.17 late on). At night it leaks back. The dark control: no
+  difference. Why: light puts H+ on heads on both sides of the wall, but H+ on outer heads swaps
+  with the big pond at once, while H+ on inner heads stays in the small sealed inside. So a pigment
+  sitting in a wall acts as a crude pump with no direction coded. About a third of the hand-placed
+  pump of e19 (0.2-0.3).
+- Light (heat) shakes some tar back out (lit runs end with less in walls than the dark control).
+- All bags stay sealed; contents and wall size as in e20.
+- Shortcuts (flagged): HCN starts concentrated (no drying step); tar oiliness and the photo-acid rule
+  are guesses. Plot `runs/e21/e21_tar.png` (`experiments/e21_plot.py`), numbers `experiments/e21_sum.py`,
+  per-bag tar `experiments/e21_bags.py`.
