@@ -15,6 +15,9 @@ a reaction uses or releases is not tracked.
              HCN + HCN (the dimer) is the slow first step; growing a
              chain is fast. Long HCN chains are the dark "HCN polymer",
              which absorbs light: a crude first pigment.
+  tar        (tar_len n, optional) an HCN chain of n or more is retyped "tar": long HCN
+             polymer does not dissolve (oily-ish, how oily is a guess). It still grows at
+             its ends like any HCN chain.
   hydrolysis a lone HCN reacts with water (-> formamide -> formic acid +
              NH3). The bead becomes NH3; the carbon leaves as formic acid,
              not tracked.
@@ -31,17 +34,19 @@ from scipy.spatial import cKDTree
 
 from .elements import INDEX
 
-CARB, HCN, NH3 = INDEX["carb"], INDEX["hcn"], INDEX["nh3"]
+CARB, HCN, NH3, TAR = INDEX["carb"], INDEX["hcn"], INDEX["nh3"], INDEX["tar"]
+CHAIN = (HCN, TAR)   # beads of HCN chains (tar = long ones)
 
 
 class Nitrogen:
     def __init__(self, every=50, reach=1.3, base_reach=2.0, kT0=0.6,
                  p_strecker=0.05, p_cyano=0.008, p_poly=0.05, no_base=0.05, dimer_factor=0.01,
-                 p_hydro=2e-4, Ea=4.0, Ea_hydro=6.0):
+                 p_hydro=2e-4, Ea=4.0, Ea_hydro=6.0, tar_len=None):
         self.every, self.reach, self.base_reach, self.kT0 = every, reach, base_reach, kT0
         self.p_strecker, self.p_cyano = p_strecker, p_cyano
         self.p_poly, self.no_base, self.dimer_factor = p_poly, no_base, dimer_factor
         self.p_hydro, self.Ea, self.Ea_hydro = p_hydro, Ea, Ea_hydro
+        self.tar_len = tar_len
         self.glycine = self.cyano = self.poly = self.hydrolysed = 0
 
     def _heat(self, world, idx, Ea):
@@ -58,6 +63,8 @@ class Nitrogen:
         self._strecker(world, p, lone)
         size = np.bincount(world.mol, minlength=world.n_mol)
         self._polymer(world, p, size, live)
+        if self.tar_len:
+            world.type[dark_beads(world, self.tar_len)] = TAR   # same charge (0): neighbour lists stay valid
         self._hydrolysis(world, live & (size[world.mol] == 1))
 
     def _near(self, p, world, idx, points, r):
@@ -96,9 +103,10 @@ class Nitrogen:
                 self.cyano += 1
 
     def _polymer(self, world, p, size, live):
-        hcn_mol = np.bincount(world.mol[world.type == HCN], minlength=world.n_mol)
-        pure = live & (world.type == HCN) & (hcn_mol[world.mol] == size[world.mol])   # HCN-only molecules
-        hb = world.bonds[(world.type[world.bonds[:, 0]] == HCN) & (world.type[world.bonds[:, 1]] == HCN)]
+        chain = np.isin(world.type, CHAIN)
+        hcn_mol = np.bincount(world.mol[chain], minlength=world.n_mol)
+        pure = live & chain & (hcn_mol[world.mol] == size[world.mol])   # HCN-only molecules
+        hb = world.bonds[chain[world.bonds[:, 0]] & chain[world.bonds[:, 1]]]
         degree = np.bincount(hb.ravel(), minlength=world.n)
         ends = np.flatnonzero(pure & (degree < 2))
         if len(ends) < 2:
@@ -135,9 +143,9 @@ class Nitrogen:
 
 
 def dark_beads(world, n=5):
-    """Beads in pure-HCN chains of n or more: the dark HCN polymer (absorbs visible light)."""
-    t, size = world.type, np.bincount(world.mol, minlength=world.n_mol)
-    n_h = np.bincount(world.mol[t == HCN], minlength=world.n_mol)
+    """Beads in pure-HCN chains (HCN or tar beads) of n or more: the dark HCN polymer (absorbs visible light)."""
+    size = np.bincount(world.mol, minlength=world.n_mol)
+    n_h = np.bincount(world.mol[np.isin(world.type, CHAIN)], minlength=world.n_mol)
     dark = (n_h == size) & (size >= n)
     return np.flatnonzero(dark[world.mol])
 
@@ -147,7 +155,7 @@ def census(world):
     glycolonitrile, and HCN chains by length (hcn_chains[n] = chains of n HCN)."""
     t, size = world.type, np.bincount(world.mol, minlength=world.n_mol)
     per = lambda k: np.bincount(world.mol[t == k], minlength=world.n_mol)
-    n_c, n_h, n_n = per(CARB), per(HCN), per(NH3)
+    n_c, n_h, n_n = per(CARB), per(HCN) + per(TAR), per(NH3)
     mols = np.unique(world.mol)
     s, c, h, n = size[mols], n_c[mols], n_h[mols], n_n[mols]
     pure_h = (h == s)

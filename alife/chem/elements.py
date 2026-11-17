@@ -37,6 +37,7 @@ ELEMENTS = [
     ("fa_oh",    0,   0.95, 0.0, "#E8C3A0", "fatty alcohol head, OH (neutral, never charged): decanol-like co-surfactant"),
     ("fuel",     0,   1.00, 0.0, "#F2A93B", "fuel: an activated molecule (anhydride / thioester-like); burning it frees an acid H+"),
     ("waste",    0,   1.00, 0.0, "#8C8C8C", "burnt fuel"),
+    ("tar",      0,   0.80, 0.5, "#4A3320", "HCN polymer grown long (Nitrogen tar_len): insoluble brown-black tar; oiliness a guess"),
 ]
 
 NAMES = [row[0] for row in ELEMENTS]

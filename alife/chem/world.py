@@ -61,6 +61,25 @@ class Rules:
         self.bend_k = 10.0    # spring between beads i and i+2: keeps lipids straight
         self.bend_r0 = 2.0
 
+    def grow(self):
+        """Add rows for element types added to the table after these rules were made (old saved
+        worlds); rows already here keep their values (and any set_oily / set_pair_eps)."""
+        k = len(self.charge)
+        if k >= N_TYPES:
+            return
+        new = Rules()
+        new.sigma[:k, :k] = self.sigma
+        new.oily = new.oily.copy()
+        new.oily[:k] = self.oily
+        new.eps = np.sqrt(new.oily[:, None] * new.oily[None, :])
+        new.eps[:k, :k] = self.eps
+        new.charge[:k] = self.charge
+        new.pair_eps = {**new.pair_eps, **self.pair_eps}
+        for key, v in self.__dict__.items():
+            if key not in ("sigma", "oily", "eps", "charge", "pair_eps"):
+                setattr(new, key, v)
+        self.__dict__.update(new.__dict__)
+
     def set_oily(self, name, value):
         """Change one bead type's oiliness (its attraction to oily beads: sqrt(oily_a * oily_b))."""
         k = el.INDEX[name]
@@ -301,6 +320,7 @@ class World:
         w.__dict__.update(d["world"])
         for k in cls.FUNCTIONS:
             setattr(w, k, None)
+        w.rules.grow()   # element types added since the save
         return w, d["extra"]
 
     def _mol_mids(self):

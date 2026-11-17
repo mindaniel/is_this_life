@@ -47,6 +47,8 @@ absorb light (--p-abs, --light-period): each photon gives --glow-heat kT of heat
 with --glow-gain g > 0 tries to put an H+ onto a nearby COO- (photo-acid; speculative, flagged).
 Logs hcn (lone), dark (beads in dark chains), longest, dark_wall (dark beads touching a lipid),
 absorbed (photons so far), glow_acid (H+ put on by light so far).
+--tar-len n: HCN chains of n or more turn into "tar" beads (long HCN polymer is insoluble), oiliness
+--tar-oily (a guess). Logs dark_tail (dark beads touching a lipid tail: sunk into a wall).
 
     python experiments/e16_catalyst.py --steps 200000 --video runs/video/e16_s0.mp4
     python experiments/e16_catalyst.py --cats 0      # control: no catalyst anywhere
@@ -64,7 +66,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from alife.chem.analysis import cluster_labels, water_pockets3   # noqa: E402
 from alife.chem.elements import INDEX   # noqa: E402
-from alife.chem.nitrogen import HCN, NH3, Nitrogen, census, dark_beads   # noqa: E402
+from alife.chem.nitrogen import HCN, NH3, TAR, Nitrogen, census, dark_beads   # noqa: E402
 from alife.chem.reactions import HEADS, PIGMENT, Burn, LightPump, LipidJoin, PHShocks, Protonation   # noqa: E402
 from alife.chem.world import STAIL, TAIL, TAILS, World   # noqa: E402
 from e15_split3d import feed, mixed_vesicle, offset, parse_lengths, scatter_fast, shear_flow   # noqa: E402
@@ -72,7 +74,7 @@ from e15_split3d import feed, mixed_vesicle, offset, parse_lengths, scatter_fast
 FIELDS = ["step", "A_chains", "A_double", "B_chains", "B_double", "A_in", "B_in", "same_cluster", "pockets", "volumes",
           "loose", "joins", "added", "A_fa", "B_fa", "A_len", "B_len", "A_left", "B_left", "A_q", "B_q",
           "A_oh", "B_oh", "A_qin", "B_qin", "ph", "burns", "pumps", "light", "water",
-          "hcn", "dark", "longest", "dark_wall", "absorbed", "glow_acid"]
+          "hcn", "dark", "longest", "dark_wall", "dark_tail", "absorbed", "glow_acid"]
 FA_OH = INDEX["fa_oh"]
 CHAIN_HEADS = HEADS + (FA_OH,)   # every single-tail head (fatty alcohols too) counts as a chain
 
@@ -138,12 +140,14 @@ def nitrogen_row(w, glow, dark_len):
     h = c["hcn_chains"]
     dark = dark_beads(w, dark_len)
     lipid = np.flatnonzero(np.isin(w.type, TAILS + HEADS))
-    touch = 0
+    tails = np.flatnonzero(np.isin(w.type, TAILS))
+    touch = inside = 0
     if len(dark) and len(lipid):
         p = w._wrapped()
         touch = int((cKDTree(p[lipid], boxsize=w.L).query(p[dark], distance_upper_bound=1.5)[0] < np.inf).sum())
+        inside = int((cKDTree(p[tails], boxsize=w.L).query(p[dark], distance_upper_bound=1.5)[0] < np.inf).sum())
     row = {"hcn": c["hcn"], "dark": len(dark), "longest": int(np.flatnonzero(h)[-1]) if h[2:].any() else 1,
-           "dark_wall": touch}
+           "dark_wall": touch, "dark_tail": inside}
     if glow:
         row["absorbed"], row["glow_acid"], row["light"] = glow.absorbed, glow.pumps, int(glow.light(w.t))
     return row
@@ -368,6 +372,8 @@ def main():
     p.add_argument("--dark-len", type=int, default=5, help="HCN chain length that counts as dark pigment")
     p.add_argument("--glow-heat", type=float, default=10.0, help="heat (kT) per absorbed photon")
     p.add_argument("--glow-gain", type=float, default=0.0, help="photo-acid: kT per photon to put H+ on a COO- (0 = off)")
+    p.add_argument("--tar-len", type=int, default=0, help="HCN chains of this length or more turn into oily tar (0 = off)")
+    p.add_argument("--tar-oily", type=float, default=0.5, help="oiliness of tar beads (a guess)")
     p.add_argument("--feed", type=int, default=0, help="add --batch loose fatty acids every N steps (0 = never)")
     p.add_argument("--batch", type=int, default=1)
     p.add_argument("--shear", type=float, default=0.0)
@@ -401,6 +407,7 @@ def main():
             + ("_rain" + args.rain.replace(":", "x").replace(",", "_") + f"_o{args.rain_over}_ev{args.evap}"
                if args.rain else "")
             + (f"_hcn{args.hcn}_nh{args.nh3}" if args.hcn or args.nh3 else "")
+            + (f"_tar{args.tar_len}o{args.tar_oily:g}" if args.tar_len else "")
             + (f"_glow{args.dark_len}_h{args.glow_heat:g}_g{args.glow_gain:g}_pa{args.p_abs:g}_P{args.light_period}"
                if args.glow else "") + f"_s{args.seed}")
     if args.start:
@@ -423,8 +430,10 @@ def main():
         w.t -= 200
     nit = None
     if (w.type == HCN).any() or (w.type == NH3).any():
-        w.repel_inside = tuple(sorted(set(w.repel_inside) | {HCN, NH3}))   # floppy chains: no folding through
-        nit = Nitrogen(every=50, kT0=w.kT)   # rates as calibrated, at this temperature
+        w.repel_inside = tuple(sorted(set(w.repel_inside) | {HCN, NH3, TAR}))   # floppy chains: no folding through
+        nit = Nitrogen(every=50, kT0=w.kT, tar_len=args.tar_len or None)   # rates as calibrated, at this temperature
+        if args.tar_len:
+            w.rules.set_oily("tar", args.tar_oily)
     end = w.t + args.steps
     rx = LipidJoin(p_join=args.p_join, no_cat=args.no_cat, p_break=args.p_break, length=args.length,
                    chains=(STAIL,) if args.fa_only else (TAIL, STAIL))

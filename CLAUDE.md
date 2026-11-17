@@ -135,6 +135,9 @@ energy rules + copying with errors + selection.
   photo-acid `--glow-gain`, via `LightPump(pigment=, any_head=True, heat=)`). e16 `--rain` uses
   `World.rescale(f, group, unwrap=True)` (BFS unwrap; old e13 floods used no unwrap: big networks
   wider than half the box may have torn a little).
+- Bead `tar` (end of table): `Nitrogen(tar_len=n)` retypes HCN chains of n+ to tar (oily, value a guess;
+  e16 `--tar-len --tar-oily`, logs dark_tail). `Rules.grow()` (called by `World.load`) adds rows for element
+  types added after a save. `experiments/e21_tar.py` = tar branches from e20's joined worlds.
 
 ## Rules of thumb (learned the hard way)
 

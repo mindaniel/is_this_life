@@ -24,10 +24,10 @@ BASE = ["--p-join", "0", "--fa-only", "--length", "1.2", "--fa-lengths", "1:0.25
 BAGS = "cats20_p0_nc0_br0_mix0.5_q0.5_f0x1_sh0_fa_len1.2_mix1-2-3_ph5_pka4.8_hb1_sealH_s{s}_state.pkl"
 
 
-def run_all(jobs, out):
+def run_all(jobs, out, tag="e20"):
     procs = []
     for name, cmd in jobs:
-        f = open(os.path.join("runs", "stdout", f"e20_{name}.txt"), "w")
+        f = open(os.path.join("runs", "stdout", f"{tag}_{name}.txt"), "w")
         procs.append((name, subprocess.Popen([PY] + cmd, stdout=f, stderr=subprocess.STDOUT), f))
     bad = []
     for name, pr, f in procs:
