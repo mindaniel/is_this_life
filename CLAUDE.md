@@ -138,6 +138,9 @@ energy rules + copying with errors + selection.
 - Bead `tar` (end of table): `Nitrogen(tar_len=n)` retypes HCN chains of n+ to tar (oily, value a guess;
   e16 `--tar-len --tar-oily`, logs dark_tail). `Rules.grow()` (called by `World.load`) adds rows for element
   types added after a save. `experiments/e21_tar.py` = tar branches from e20's joined worlds.
+- `alife/chem/sun.py` (`Sun(d, period, kT_earth)`): smooth day brightness (pi/2 max(0, sin)/d^2) and kT(t)
+  (kT_earth d^-0.5, small lagged swing). `LightPump(sun=)` scales p_abs by brightness, gain/heat in Earth kT.
+  e16 `--sun-d --kT-earth` sets w.kT every 50 steps; `hcn_pond.py --kT0`, `merge_worlds.py --kT`. `experiments/e22_sun.py`.
 
 ## Rules of thumb (learned the hard way)
 
@@ -316,6 +319,11 @@ energy rules + copying with errors + selection.
 - (2026-11-17) e21 (`runs/e21/`, tar_len 5, oily 0.5/0.8, from e20 dry joins, 9 runs): tar sinks into walls
   (84-172 beads touching tails vs ~7 non-oily), unevenly; in light the tar-rich bag's inside goes acid by day
   (-0.05..-0.09 charged share vs other bag, dips to -0.17), 6/6; dark control ~0. Emergent crude pump.
+- (2026-11-18) e22 habitable zone (`runs/e22/`, `alife/chem/sun.py` smooth sun, d 0.7/0.85/1/1.2/1.5 x 3 seeds,
+  e16 `--sun-d`): bags sealed everywhere; tar and tar-in-walls fall with distance (~4x hot vs cold); pump
+  (tar-rich minus other qin, day) -0.04..-0.08 at 0.85/1, ~0..-0.03 at 1.2/1.5. d 0.7 (3/3) and 0.85 (1/3)
+  crash at peak light: photon heat (10 kT x brightness into 8 beads) overheats tar clumps, integrator
+  blows up (checked: heat 0 survives). Fix before rerunning: cap/spread photon heat or smaller dt.
 
 ## Next steps (user's choice; ask before starting a big one)
 

@@ -266,3 +266,22 @@ Running themes to come back to on camera:
   trapped. The first pump-like behaviour that nobody built. Weaker than the hand-made pump (about a
   third). Guesses: how oily the tar is, and that light on it makes acid. Plot `runs/e21/e21_tar.png`
   (the day/night dips are the shot for the episode).
+
+## Ep 14. The habitable zone: our pond on other planets (2026-11-17/18)
+
+- **The user's question:** Earth is at just the right distance from the sun; a bit closer or further
+  and everything would have died. Does our pond agree? (Gentle correction: the sun doesn't really "go
+  round" us, the planet spins; and Venus and Mars got their fates mostly from their air, which we don't
+  model.)
+- **Built:** a smooth sun. Light rises and falls through the day, the water warms a little after it.
+  A closer planet gets more light (1/distance squared) and is warmer; chemistry runs faster when warm.
+  Same pond (HCN puddle + two bags) on 5 planets, 3 seeds each.
+- **What happened:** the bags held on every planet. Hot planets made ~4x the tar of cold ones, and more
+  of it sank into walls. The tar pump (Ep 13) worked on Earth and a bit closer; further out it nearly
+  vanished (too little tar, too little light). So the "zone" for our crude pump is Earth-ish.
+- **Too close crashed:** at Venus distance the simulation broke on the first bright day. The tar
+  soaked up so much light that its own heat outran the cooling, and the beads jumped. Checked: without
+  photon heat the same world is fine. That's our model's limit, not the bags dying (real heat from one
+  photon leaves in a trillionth of a second). Honest reading: we can't say yet what happens at Venus.
+- Caveats: no air, no ice or boiling, bags moved from Earth, day hugely sped up.
+  Plot `runs/e22/e22_zone.png` (four panels: tar, tar in walls, loose lipids, pump vs distance).

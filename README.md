@@ -949,3 +949,37 @@ Start: e20's joined worlds (bags + concentrated HCN puddle), 60k steps, 3 seeds
 - Shortcuts (flagged): HCN starts concentrated (no drying step); tar oiliness and the photo-acid rule
   are guesses. Plot `runs/e21/e21_tar.png` (`experiments/e21_plot.py`), numbers `experiments/e21_sum.py`,
   per-bag tar `experiments/e21_bags.py`.
+
+## Habitable zone: the same pond closer to or further from the sun (e22)
+
+The user's idea: Earth sits at just the right distance; a bit closer or further and life dies.
+`alife/chem/sun.py`: a smooth day (light rises and falls, same total as the old on/off day), the
+temperature follows with a small swing peaking in the afternoon. Distance d (Earth = 1): light 1/d^2,
+mean temperature kT 1.1 x d^-0.5 (a planet's equilibrium temperature law, Earth's greenhouse kept).
+Reaction rates keep their Earth calibration, so hotter = faster. Per d, 3 seeds: HCN puddle made at
+that temperature (20k), joined to e20's bags, 60k steps with the sun, tar 0.8, light heat + photo-acid
+as e21 (`experiments/e22_sun.py`).
+
+| d | kT (~C) | light | runs finished | tar made (dark) | tar in walls | loose fatty acids | pump: tar-rich bag minus other, day / night |
+|---|---|---|---|---|---|---|---|
+| 0.7 (~Venus) | 1.31 (~+60) | 2x | 0/3 (crash) | - | - | - | - |
+| 0.85 | 1.19 (~+45) | 1.4x | 2/3 | 1284-1483 | 119-135 | 277-308 | -0.04..-0.07 / ~0 |
+| 1 (Earth) | 1.10 (~25) | 1x | 3/3 | 1081-1141 | 102-111 | 247-267 | -0.05..-0.08 / -0.00..-0.02 |
+| 1.2 | 1.00 (~0) | 0.7x | 3/3 | 659-890 | 62-85 | 203-224 | -0.00..-0.02 / ~0 |
+| 1.5 (~Mars) | 0.90 (~-30) | 0.44x | 3/3 | 312-425 | 27-47 | 162-190 | -0.01..-0.03 / -0.02..0 |
+
+- **Bags stay sealed everywhere** (all finished runs; the crashed ones too, up to the crash).
+  Heat shakes more fatty acids loose (162-190 cold vs 277-308 hot), walls still hold.
+- **Tar follows temperature:** hot ponds make ~4x the tar of cold ones, and more of it sinks into walls.
+- **The tar pump works at 0.85 and 1, barely at 1.2 and 1.5:** less tar in walls and dimmer light.
+  So in this model the "zone" for the pump is Earth and a bit closer.
+- **Too close: the run crashes (0.7 all 3 seeds, 0.85 one seed at its brightest).** Not the bags dying:
+  each photon puts 10 kT into the 8 nearest beads; at 2-3x light the tar clumps get many photons,
+  heat up faster than the water cools them, and the time step can't follow (beads jump onto each other).
+  Checked: the same Venus world with photon heat 0 runs through the bright peak, bags sealed. Real
+  photon heat leaves a molecule in picoseconds; our per-photon heat is already exaggerated.
+- Shortcuts (flagged): no atmosphere change with distance (real Venus/Mars fates were set by their air),
+  no freezing or boiling (Mars pond stays liquid), one temperature for the whole box, bags made at
+  Earth's temperature and moved, day ~10^14x shorter, light has no direction. Bead kT to degrees is rough.
+  Plot `runs/e22/e22_zone.png` (`experiments/e22_plot.py`), numbers `experiments/e22_sum.py`
+  (`runs/e22/e22_summary.csv`).
