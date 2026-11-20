@@ -324,6 +324,11 @@ energy rules + copying with errors + selection.
   (tar-rich minus other qin, day) -0.04..-0.08 at 0.85/1, ~0..-0.03 at 1.2/1.5. d 0.7 (3/3) and 0.85 (1/3)
   crash at peak light: photon heat (10 kT x brightness into 8 beads) overheats tar clumps, integrator
   blows up (checked: heat 0 survives). Fix before rerunning: cap/spread photon heat or smaller dt.
+- (2026-11-20) e22w (`e22_sun.py --warm`, e16 `--glow-warm`, `LightPump(warm=True)` -> `World.warm` = extra kT per
+  bead for 50 steps, same energy as the kick; reactions ignore it): the same 4 runs crash (0.7 x3, 0.85 s1, at
+  sun 2-3x). The heat amount (10 kT/photon) is the problem, not delivery. Tar/loose trends repeat; pump vs
+  distance does not (seed spread ~0.05). `e22_sum.py/e22_plot.py --warm` select `_h10w_` runs.
+  Options: heat 0 at all d (sun kT already includes the light's warming), smaller heat, or dt 0.005.
 
 ## Next steps (user's choice; ask before starting a big one)
 

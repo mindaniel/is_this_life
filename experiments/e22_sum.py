@@ -1,7 +1,7 @@
 """e22 summary per planet distance: bags sealed, tar made and in walls, and the tar pump (tar-rich bag minus
 the other's inner charged share, day vs night). Per-bag tar from the final state (as e21_bags); crashed
 runs have no final state and are summarised up to the crash."""
-import glob, os, sys, numpy as np, pandas as pd
+import argparse, glob, os, sys, numpy as np, pandas as pd
 sys.path.insert(0, "experiments"); sys.path.insert(0, ".")
 from scipy.spatial import cKDTree
 from alife.chem.world import World, TAILS
@@ -23,7 +23,11 @@ def tar_per_bag(f):
 
 
 rows = []
-for f in sorted(glob.glob("runs/e22/sun*_s?.csv")):
+ap = argparse.ArgumentParser()
+ap.add_argument("--warm", action="store_true", help="photon heat as warm spot (h10w runs), else kicked (h10)")
+VAR = "e22w" if ap.parse_args().warm else "e22"
+TAG = "_h10w_" if VAR == "e22w" else "_h10_"
+for f in sorted(x for x in glob.glob("runs/e22/sun*_s?.csv") if TAG in x):
     d = pd.read_csv(f)
     dist, seed = float(f.split("_sun")[1].split("_")[0]), int(f[-5])
     st = f.replace(".csv", "_state.pkl")
@@ -42,4 +46,4 @@ for f in sorted(glob.glob("runs/e22/sun*_s?.csv")):
 t = pd.DataFrame(rows)
 pd.set_option("display.width", 250)
 print(t.to_string(index=False))
-t.to_csv("runs/e22/e22_summary.csv", index=False)
+t.to_csv(f"runs/e22/{VAR}_summary.csv", index=False)

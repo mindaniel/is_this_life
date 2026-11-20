@@ -983,3 +983,26 @@ as e21 (`experiments/e22_sun.py`).
   Earth's temperature and moved, day ~10^14x shorter, light has no direction. Bead kT to degrees is rough.
   Plot `runs/e22/e22_zone.png` (`experiments/e22_plot.py`), numbers `experiments/e22_sum.py`
   (`runs/e22/e22_summary.csv`).
+
+**Rerun with photon heat as a warm spot (e22w, `e22_sun.py --warm`, e16 `--glow-warm`).** Same 10 kT per
+photon, but instead of one kick it raises the water temperature around the 8 nearest beads for the next
+50 steps (`World.warm`; same energy in through the thermostat). Chemistry still sees the pond's
+temperature only (local warmth does not speed reactions).
+
+| d | runs finished | tar made | tar in walls | loose | pump, day / night |
+|---|---|---|---|---|---|
+| 0.7 | 0/3 (crash at 43k, 45k, 63k, all near noon) | - | - | - | - |
+| 0.85 | 2/3 (1 crash at 66k) | 1265-1268 | 99-115 | 274-312 | -0.04..+0.02 / ~0 |
+| 1 | 3/3 | 1062-1087 | 81-125 | 238-261 | -0.08..+0.01 / ~0 |
+| 1.2 | 3/3 | 672-911 | 54-86 | 202-235 | -0.03..-0.05 / ~0 |
+| 1.5 | 3/3 | 362-438 | 32-35 | 157-181 | -0.01..-0.05 / ~0 |
+
+- **Same crashes.** The gentler delivery doesn't change the total heat: at 2-3x light the tar clumps
+  still run ~5x hotter than the water (probe: dark beads' kinetic energy 5 kT-units vs 1.3), and the
+  overheated beads overlap. The problem is the amount of photon heat (10 kT per photon, a guess), not how
+  it's put in.
+- **Tar and loose fatty acids repeat** the first run closely (grey dashed line in the plot): robust.
+- **The pump vs distance is not robust:** this time 1.2 and 1.5 pump about as well as Earth, and one seed
+  at 0.85 and at 1 shows no pump. With 3 seeds the spread (~0.05) is as big as any distance effect. What
+  holds: tar-rich bags tend to go acid by day at every finished distance; night ~0.
+  Plot `runs/e22/e22w_zone.png` (`e22_plot.py --warm`, numbers `e22_sum.py --warm` -> `e22w_summary.csv`).

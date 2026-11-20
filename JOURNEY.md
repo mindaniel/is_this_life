@@ -285,3 +285,11 @@ Running themes to come back to on camera:
   photon leaves in a trillionth of a second). Honest reading: we can't say yet what happens at Venus.
 - Caveats: no air, no ice or boiling, bags moved from Earth, day hugely sped up.
   Plot `runs/e22/e22_zone.png` (four panels: tar, tar in walls, loose lipids, pump vs distance).
+- **Fix attempt (2026-11-19/20):** we made the photon heat gentler: instead of a kick, the light warms
+  the water around the tar for a short while. All 15 rerun. The same 4 hot runs still crashed: being
+  gentle didn't matter, the light simply puts too much heat into the tar (it got ~5x hotter than the
+  water). Lesson for the video: the bug was the *amount* of a guessed number, not the method.
+- **Second look at the pump:** the tar amounts came out the same as the first run (robust), but the
+  pump's best distance moved: now Earth, 1.2 and Mars-ish pump about equally. With 3 seeds per planet the
+  pump is too noisy to say "Earth is best". Honest: tar-rich bags go acid by day wherever we could run.
+  Plot `runs/e22/e22w_zone.png` (grey dashed = first run).
