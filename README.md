@@ -1006,3 +1006,9 @@ temperature only (local warmth does not speed reactions).
   at 0.85 and at 1 shows no pump. With 3 seeds the spread (~0.05) is as big as any distance effect. What
   holds: tar-rich bags tend to go acid by day at every finished distance; night ~0.
   Plot `runs/e22/e22w_zone.png` (`e22_plot.py --warm`, numbers `e22_sum.py --warm` -> `e22w_summary.csv`).
+- **Earth, 9 seeds (2026-11-20, seeds 3-8 added, own bags each):** all sealed, none crashed. Tar-rich bag
+  minus the other, inner charged share, late day: -0.075 -0.064 +0.012 -0.076 -0.002 -0.001 -0.033 -0.052
+  -0.031 (mean -0.036 +- 0.033); night -0.003 +- 0.006. 6/9 seeds pump (day < -0.02). The 3 that don't have
+  tar spread about evenly over both walls (wall tar 20/16, 0/6, 46/41): the pump's size follows the tar
+  gap between the walls (r = -0.85). So the pump is real, and it is a difference between bags: whichever
+  bag happens to catch more tar goes acid by day. `e22_earth.py` -> `runs/e22/e22w_earth.png`.

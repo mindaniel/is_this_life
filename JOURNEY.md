@@ -293,3 +293,9 @@ Running themes to come back to on camera:
   pump's best distance moved: now Earth, 1.2 and Mars-ish pump about equally. With 3 seeds per planet the
   pump is too noisy to say "Earth is best". Honest: tar-rich bags go acid by day wherever we could run.
   Plot `runs/e22/e22w_zone.png` (grey dashed = first run).
+- **Earth, 9 seeds (2026-11-20):** we stopped chasing other planets and ran 6 more Earth ponds. All fine.
+  6 of 9 show the pump (the tar-rich bag goes acid by day, back by night). The 3 that don't are the ones
+  where the tar landed about equally in both bags, so there's no "rich" bag. The more uneven the tar, the
+  stronger the pump (r = -0.85). Nobody placed a pump: chance decides which bag gets the tar, and that bag
+  starts using light. That's the kind of variation selection could later act on.
+  Plot `runs/e22/e22w_earth.png` (left: per seed, day vs night; right: pump vs tar gap).

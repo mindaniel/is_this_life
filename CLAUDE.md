@@ -331,6 +331,9 @@ energy rules + copying with errors + selection.
   Options: heat 0 at all d (sun kT already includes the light's warming), smaller heat, or dt 0.005.
   User decision (2026-11-20): not needed. Goal is life on Earth; Venus/other planets were a side question.
   Earth runs (d 1) all finish fine. Don't chase the Venus crash.
+- (2026-11-20) Earth 9 seeds (d 1, warm heat, seeds 3-8 with own e16 bags in runs/e20/pre): pump day -0.036 +- 0.033,
+  night -0.003 +- 0.006, 6/9 pump; size follows tar gap between the two walls (r -0.85; even tar = no pump).
+  `experiments/e22_earth.py` -> `runs/e22/e22w_earth.png`. Next offered: gated channels.
 
 ## Next steps (user's choice; ask before starting a big one)
 
