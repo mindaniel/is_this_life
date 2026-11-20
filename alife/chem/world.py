@@ -134,6 +134,7 @@ class World:
         self.energy = 0.0
         self.flow = None   # optional function pos -> water velocity (currents)
         self.kT_field = None   # optional function pos -> temperature per bead (zones)
+        self.warm = None   # optional extra temperature per bead (light-warmed spots, reactions.LightPump warm)
         self.external = None   # optional function pos -> (force, energy), e.g. a pond shore
         self._pairs = None
         self._charged_pairs = None
@@ -556,12 +557,14 @@ class World:
         so they are re-read every `field_every` steps, not every step.
         """
         c1 = np.exp(-self.gamma * self.dt)
-        c2 = np.sqrt((1 - c1 ** 2) * self.kT)
+        warm = getattr(self, "warm", None)   # (old saves have no warm)
+        c2 = np.sqrt((1 - c1 ** 2) * self.kT) if warm is None else np.sqrt((1 - c1 ** 2) * (self.kT + warm))[:, None]
         u = 0.0
         for s in range(n):
             if s % self.field_every == 0:
                 if self.kT_field is not None:
-                    c2 = np.sqrt((1 - c1 ** 2) * np.maximum(self.kT_field(self.pos), 0.0))[:, None]
+                    kT = self.kT_field(self.pos) + (0.0 if warm is None else warm)
+                    c2 = np.sqrt((1 - c1 ** 2) * np.maximum(kT, 0.0))[:, None]
                 u = 0.0 if self.flow is None else self.flow(self.pos)
             F, self.energy = self.forces()
             if self.external is not None:

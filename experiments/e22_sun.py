@@ -7,7 +7,8 @@ Per distance d and seed: (1) HCN puddle made at that planet's mean temperature f
 Earth's temperature, then moved: the planet changes at the join, flagged); (3) 60k steps with the
 sun, tar 0.8, light heat + photo-acid.
 Distances 0.7 (~Venus), 0.85, 1 (Earth), 1.2, 1.5 (~Mars) -> mean kT 1.31 .. 0.90.
-Logs in runs/stdout/e22_*.txt.
+Logs in runs/stdout/e22_*.txt. --warm: photon heat as a warm spot (LightPump warm), not a kick;
+the kicked runs crashed at strong light (0.7, one 0.85). Logs then in runs/stdout/e22w_*.txt.
 
     python experiments/e22_sun.py --seeds 0 1 2
 """
@@ -26,6 +27,7 @@ def main():
     p.add_argument("--pre", type=int, default=20000)
     p.add_argument("--steps", type=int, default=60000)
     p.add_argument("--out", default="runs/e22")
+    p.add_argument("--warm", action="store_true", help="photon heat as a warm spot (e16 --glow-warm)")
     a = p.parse_args()
     pre = os.path.join(a.out, "pre")
     os.makedirs(pre, exist_ok=True)
@@ -46,10 +48,11 @@ def main():
             runs.append((f"sun{d:g}_s{s}", ["experiments/e16_catalyst.py", "--start", joined, *BASE, "--steps", str(a.steps),
                                             "--seed", str(s), "--out", a.out, "--tar-len", "5", "--tar-oily", "0.8",
                                             "--glow", "--glow-heat", "10", "--glow-gain", "5",
-                                            "--sun-d", str(d), "--kT-earth", str(KT_EARTH)]))
+                                            "--sun-d", str(d), "--kT-earth", str(KT_EARTH)]
+                         + (["--glow-warm"] if a.warm else [])))
     run_all(ponds, a.out, "e22")
     run_all(joins, a.out, "e22")
-    run_all(runs, a.out, "e22")
+    run_all(runs, a.out, "e22w" if a.warm else "e22")
     print("e22 done")
 
 

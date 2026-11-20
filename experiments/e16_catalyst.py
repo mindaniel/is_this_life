@@ -376,6 +376,7 @@ def main():
     p.add_argument("--glow", action="store_true", help="dark HCN polymer absorbs light")
     p.add_argument("--dark-len", type=int, default=5, help="HCN chain length that counts as dark pigment")
     p.add_argument("--glow-heat", type=float, default=10.0, help="heat (kT) per absorbed photon")
+    p.add_argument("--glow-warm", action="store_true", help="photon heat as a warm spot for 50 steps, not one kick")
     p.add_argument("--glow-gain", type=float, default=0.0, help="photo-acid: kT per photon to put H+ on a COO- (0 = off)")
     p.add_argument("--tar-len", type=int, default=0, help="HCN chains of this length or more turn into oily tar (0 = off)")
     p.add_argument("--tar-oily", type=float, default=0.5, help="oiliness of tar beads (a guess)")
@@ -416,7 +417,7 @@ def main():
             + (f"_hcn{args.hcn}_nh{args.nh3}" if args.hcn or args.nh3 else "")
             + (f"_tar{args.tar_len}o{args.tar_oily:g}" if args.tar_len else "")
             + (f"_sun{args.sun_d:g}" if args.sun_d else "")
-            + (f"_glow{args.dark_len}_h{args.glow_heat:g}_g{args.glow_gain:g}_pa{args.p_abs:g}_P{args.light_period}"
+            + (f"_glow{args.dark_len}_h{args.glow_heat:g}{'w' if args.glow_warm else ''}_g{args.glow_gain:g}_pa{args.p_abs:g}_P{args.light_period}"
                if args.glow else "") + f"_s{args.seed}")
     if args.start:
         name = os.path.splitext(os.path.basename(args.start))[0].replace("_state", "") + "_then_" + name
@@ -460,7 +461,7 @@ def main():
     rain = Rain(Rain.parse(args.rain), args.rain_over, args.evap) if args.rain else None
     glow = LightPump(every=rx.every, p_abs=args.p_abs, gain=args.glow_gain, period=args.light_period, pka=args.pka,
                      pigment=lambda w: dark_beads(w, args.dark_len), any_head=True,
-                     heat=args.glow_heat, sun=sun) if args.glow else None
+                     heat=args.glow_heat, sun=sun, warm=args.glow_warm) if args.glow else None
     if glow and args.glow_gain and prot is None:
         p.error("--glow-gain needs --ph")
     if args.sealed_h:

@@ -475,13 +475,17 @@ class LightPump:
     sun (sun.Sun): smooth day instead of on/off, absorb chance p_abs x brightness; then gain and heat
     are in kT at Earth's temperature (sun.kT_earth), since a photon's energy doesn't change with
     the pond's temperature.
+    warm=True: the photon heat goes in as a warm spot instead of one instant kick: each bead's share of
+    the heat raises its water temperature (world.warm) for the next `every` steps, by the amount that
+    puts the same energy in (dT = E / (gamma dim tau)). Same heat, but no bead is shot off at once
+    (strong light made kicked tar beads too fast for the time step: e22 crashes).
     """
 
     def __init__(self, every=50, reach=3.5, p_abs=0.2, gain=10.0, period=20000, pka=4.8,
-                 pigment=None, any_head=False, heat=0.0, heat_beads=8, sun=None):
+                 pigment=None, any_head=False, heat=0.0, heat_beads=8, sun=None, warm=False):
         self.every, self.reach, self.p_abs, self.gain, self.period, self.pka = every, reach, p_abs, gain, period, pka
         self.pigment, self.any_head, self.heat, self.heat_beads = pigment, any_head, heat, heat_beads
-        self.sun = sun
+        self.sun, self.warm = sun, warm
         self.pumps = self.tries = self.absorbed = 0
 
     def light(self, t):
@@ -490,6 +494,8 @@ class LightPump:
         return self.period <= 0 or (t % self.period) < self.period / 2
 
     def react(self, world, ph, closed, prot):
+        if self.warm:
+            world.warm = None   # last window's warm spots are over
         if not self.light(world.t):
             return 0
         pig = np.flatnonzero(world.type == PIGMENT) if self.pigment is None else self.pigment(world)
@@ -502,8 +508,14 @@ class LightPump:
         if self.heat:
             p = world._wrapped()
             tree = cKDTree(p, boxsize=world.L)
-            for g in pig:
-                heat_kick(world, p, g, self.heat * unit, self.heat_beads, tree)
+            if self.warm:
+                near = tree.query(p[pig], k=self.heat_beads)[1].ravel()
+                near = near[~world.frozen[near]]
+                E = np.bincount(near, minlength=world.n) * self.heat * unit * world.kT / self.heat_beads
+                world.warm = E / (world.gamma * world.dim * self.every * world.dt)
+            else:
+                for g in pig:
+                    heat_kick(world, p, g, self.heat * unit, self.heat_beads, tree)
         if self.any_head:
             closed = np.flatnonzero(world.type == FA_HEAD)
         if not self.gain or closed is None or not len(closed):
