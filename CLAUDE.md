@@ -329,6 +329,8 @@ energy rules + copying with errors + selection.
   sun 2-3x). The heat amount (10 kT/photon) is the problem, not delivery. Tar/loose trends repeat; pump vs
   distance does not (seed spread ~0.05). `e22_sum.py/e22_plot.py --warm` select `_h10w_` runs.
   Options: heat 0 at all d (sun kT already includes the light's warming), smaller heat, or dt 0.005.
+  User decision (2026-11-20): not needed. Goal is life on Earth; Venus/other planets were a side question.
+  Earth runs (d 1) all finish fine. Don't chase the Venus crash.
 
 ## Next steps (user's choice; ask before starting a big one)
 
