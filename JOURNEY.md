@@ -312,3 +312,8 @@ Running themes to come back to on camera:
 - First result (6 templates x 10, 300 monomers, 30k steps, 1 seed): copying happens but rarely. With strong
   pairing (8 kT) 15-20% of joins are template-guided and all of those were correct copies (5/5); the rest are
   random joins in the water. Real enzyme-free RNA copying is also slow and messy. Not yet a result: 1 seed.
+- 5 seeds x 100k (pairing 8 kT, stiff pairs, stacking 0.5): steady warm water: 11-16 of 97-119 joins
+  template-guided (~13%), 69/70 of them correct copies. Warm/cool cycles (kT 1.1 <-> 1.6, period 20k): 5-12
+  of 80-97 (~9%), all correct. But random joins outrun guided ones ~7:1, so the new strands are mostly random
+  (match a template no better than shuffled) and no full copy of a 10-long template appeared. Copying by
+  pairing works and is accurate; it is just drowned out. Logs `runs/stdout/e23_*_s?.txt`, data `runs/e23/s1/`.
