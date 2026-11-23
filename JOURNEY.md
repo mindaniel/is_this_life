@@ -299,3 +299,16 @@ Running themes to come back to on camera:
   stronger the pump (r = -0.85). Nobody placed a pump: chance decides which bag gets the tar, and that bag
   starts using light. That's the kind of variation selection could later act on.
   Plot `runs/e22/e22w_earth.png` (left: per seed, day vs night; right: pump vs tar gap).
+
+## Ep 15. Can a molecule copy itself? (2026-11-23, first tests)
+- Question: genes are about copying. DNA is too late (it needs enzymes to copy it), so we try the
+  older idea: RNA-like strands that copy by base pairing, no enzymes, no "copy" rule.
+- Built `alife/chem/copying.py`: a monomer = backbone bead + base bead (X or Y). Rules: X sticks to Y
+  (X-X / Y-Y weakly: errors), touching backbones join, bonds can break. Geometry like real RNA: bases
+  in a strand stack, a base pair is flat and rigid.
+- Bloopers worth filming: (1) one-bead monomers joined with their own pair partner; (2) bases flopped all
+  round the strand so neighbours never touched; (3) a stacking spring tied far-apart bases and whipped the
+  pair apart (crash). Each fix made the model more like real RNA, not less.
+- First result (6 templates x 10, 300 monomers, 30k steps, 1 seed): copying happens but rarely. With strong
+  pairing (8 kT) 15-20% of joins are template-guided and all of those were correct copies (5/5); the rest are
+  random joins in the water. Real enzyme-free RNA copying is also slow and messy. Not yet a result: 1 seed.

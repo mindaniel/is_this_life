@@ -38,6 +38,9 @@ ELEMENTS = [
     ("fuel",     0,   1.00, 0.0, "#F2A93B", "fuel: an activated molecule (anhydride / thioester-like); burning it frees an acid H+"),
     ("waste",    0,   1.00, 0.0, "#8C8C8C", "burnt fuel"),
     ("tar",      0,   0.80, 0.5, "#4A3320", "HCN polymer grown long (Nitrogen tar_len): insoluble brown-black tar; oiliness a guess"),
+    ("nx",       0,   1.00, 0.0, "#C0392B", "base X of an RNA-like monomer (pairs with Y); hangs off one nbb backbone bead"),
+    ("ny",       0,   1.00, 0.0, "#2471A3", "base Y of an RNA-like monomer (pairs with X)"),
+    ("nbb",      0,   1.00, 0.0, "#B9A27A", "RNA-like backbone (sugar-phosphate): monomers join into strands here; charge left out"),
 ]
 
 NAMES = [row[0] for row in ELEMENTS]
