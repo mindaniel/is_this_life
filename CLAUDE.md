@@ -142,6 +142,15 @@ energy rules + copying with errors + selection.
   (kT_earth d^-0.5, small lagged swing). `LightPump(sun=)` scales p_abs by brightness, gain/heat in Earth kT.
   e16 `--sun-d --kT-earth` sets w.kT every 50 steps; `hcn_pond.py --kT0`, `merge_worlds.py --kT`. `experiments/e22_sun.py`.
 
+- `alife/chem/copying.py` + `experiments/e23_copy.py`: RNA-like copying. Monomer = backbone `nbb` + base `nx`/`ny`
+  (end of element table). `Copying`: Monte Carlo base pairing (X-Y eps, X-X/Y-Y eps_mis, one partner per base,
+  flagged), pair springs (base-base + backbone to partner base), stacking bonds between neighbour bases, joining of
+  touching backbone ends whose bases are within stack_reach (counts templated / correct), hydrolysis. e23 flags
+  `--eps --k-pair --stack --p-join --p-break --cycle --hot --dry --dry-f`; logs joins/templated/ok, `_chains.csv`
+  (copy score vs shuffled).
+- `experiments/e24_stretch.py` (+ `e24_plot.py`): osmotic stretch test, bag with `--osm-in` sugar vs `--osm` outside,
+  probe carbs inside, no Leak; logs area per lipid, holes, probes/sugar inside.
+
 ## Rules of thumb (learned the hard way)
 
 - Lipids: kT 0.6, 3 tails, bend 50. kT 1.0 too hot, 0.4 glassy.
@@ -334,6 +343,12 @@ energy rules + copying with errors + selection.
 - (2026-11-20) Earth 9 seeds (d 1, warm heat, seeds 3-8 with own e16 bags in runs/e20/pre): pump day -0.036 +- 0.033,
   night -0.003 +- 0.006, 6/9 pump; size follows tar gap between the two walls (r -0.85; even tar = no pump).
   `experiments/e22_earth.py` -> `runs/e22/e22w_earth.png`. Next offered: gated channels.
+
+- (2026-11-23) e23 copying (5 seeds x 100k): ~13% of joins template-guided, ~99% correct, but random joins win ~7:1;
+  warm/cool cycles ~9%, drying doubles both (11.5% vs 13.3%). No full copies yet. Idea: short pieces (oligos) hold on
+  longer than monomers.
+- (2026-11-23) e24 stretch (4 sugar levels x 3 seeds x 60k): wall stretches up to ~7% area but never opens (0 holes,
+  1/480 probes out). Implicit water: no water inflow, so tension may be too weak.
 
 ## Next steps (user's choice; ask before starting a big one)
 

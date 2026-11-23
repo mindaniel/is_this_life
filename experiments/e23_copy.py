@@ -13,6 +13,8 @@ import argparse, os, sys, time
 import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
 
 sys.path.insert(0, ".")
 from alife.chem.world import World
@@ -81,6 +83,9 @@ def main():
     ap.add_argument("--p-break", type=float, default=0.0)
     ap.add_argument("--cycle", type=int, default=0, help="warm/cool period in steps (0 = steady)")
     ap.add_argument("--hot", type=float, default=1.6, help="kT in the warm half of a cycle")
+    ap.add_argument("--dry", type=int, default=0, help="wet-dry period in steps (0 = always wet): water leaves "
+                    "over a quarter, stays dry a quarter, comes back over a quarter, wet a quarter")
+    ap.add_argument("--dry-f", type=float, default=0.6, help="box length when dry, as a fraction (0.6 = 4.6x concentrated)")
     ap.add_argument("--log", type=int, default=1000)
     ap.add_argument("--out", default="runs/e23")
     args = ap.parse_args()
@@ -101,12 +106,24 @@ def main():
     w.step(200, max_force=50)
     name = (f"copy_t{args.templates}x{args.tlen}_m{args.monomers}_b{args.box:g}_kT{args.kT:g}_e{args.eps:g}"
             f"_mis{args.eps_mis:g}_k{args.k_pair:g}_st{args.stack:g}_j{args.p_join:g}_br{args.p_break:g}"
-            + (f"_cyc{args.cycle}h{args.hot:g}" if args.cycle else "") + f"_s{args.seed}")
+            + (f"_cyc{args.cycle}h{args.hot:g}" if args.cycle else "")
+            + (f"_dry{args.dry}f{args.dry_f:g}" if args.dry else "") + f"_s{args.seed}")
+    L0 = w.L
     print(name, "templates:", temps, flush=True)
     rows, t0 = [], time.time()
     while w.t < args.steps:
         if args.cycle:
             w.kT = args.hot if (w.t // (args.cycle // 2)) % 2 else args.kT
+        if args.dry:
+            ph = (w.t % args.dry) / args.dry
+            x = min(ph, 0.25) * 4 - max(ph - 0.5, 0) * 4 if ph < 0.75 else 0.0   # 0 wet .. 1 dry
+            target = L0 * (1 - (1 - args.dry_f) * max(0.0, min(1.0, x)))
+            if abs(target - w.L) > 1e-9:
+                # paired strands/monomers move together: water flows around a duplex, it doesn't pull it apart
+                i = np.flatnonzero(chem.partner[:w.n] >= 0)
+                g = connected_components(coo_matrix((np.ones(len(i)), (w.mol[i], w.mol[chem.partner[i]])),
+                                                   shape=(w.n_mol, w.n_mol)), directed=False)[1]
+                w.rescale(target / w.L, group=g)
         w.step(chem.every)
         v = np.abs(w.vel).max(axis=1)
         if v.max() > 30:   # blowing up: say which beads
@@ -120,12 +137,12 @@ def main():
             new = size[(size >= 2) & ~is_t]
             paired = (chem.partner[:w.n] >= 0)
             on_t = paired & np.isin(chem.partner[:w.n], tbeads) & ~np.isin(np.arange(w.n), tbeads)
-            rows.append(dict(step=w.t, kT=w.kT, joins=chem.joins, templated=chem.templated, ok=chem.templated_ok, breaks=chem.breaks,
+            rows.append(dict(step=w.t, kT=w.kT, L=round(float(w.L), 2), joins=chem.joins, templated=chem.templated, ok=chem.templated_ok, breaks=chem.breaks,
                              paired=round(paired[w.type != BB].mean(), 3), on_templates=int(on_t.sum()),
                              monomers=int((size == 1).sum()), new_chains=int(len(new)),
                              longest_new=int(new.max()) if len(new) else 0, mean_new=round(new.mean(), 2) if len(new) else 0))
             r = rows[-1]
-            print(f"{w.t} kT {w.kT:.2f} joins {r['joins']} templated {r['templated']} ok {r['ok']} paired {r['paired']} "
+            print(f"{w.t} kT {w.kT:.2f} L {float(w.L):.1f} joins {r['joins']} templated {r['templated']} ok {r['ok']} paired {r['paired']} "
                   f"on_t {r['on_templates']} mono {r['monomers']} new {r['new_chains']} longest {r['longest_new']} "
                   f"({time.time() - t0:.0f}s)", flush=True)
     pd.DataFrame(rows).to_csv(f"{args.out}/{name}.csv", index=False)

@@ -317,3 +317,20 @@ Running themes to come back to on camera:
   of 80-97 (~9%), all correct. But random joins outrun guided ones ~7:1, so the new strands are mostly random
   (match a template no better than shuffled) and no full copy of a 10-long template appeared. Copying by
   pairing works and is accurate; it is just drowned out. Logs `runs/stdout/e23_*_s?.txt`, data `runs/e23/s1/`.
+- Drying (`--dry 20000 --dry-f 0.6`: box shrinks to 60% = 4.6x concentrated, then refills; 5 seeds x 100k):
+  guided copies about double (126 vs 70 at join chance 0.01) but random joins double too: share guided 11.5%
+  dry vs 13.3% wet (at join chance 0.002: 6% dry vs 12% wet). 121/126 guided copies correct. Concentrating
+  everything speeds all joining alike, so it doesn't let copying win. Logs `runs/stdout/e23_{dry,wet}_*`.
+
+## Ep 16. Does a stretched wall open by itself? (2026-11-23, gated channels step 1)
+- Question: real cells have channels that open when the wall is stretched. Before building any channel,
+  does a plain fatty-acid wall already open when stretched? Then stretch would be a "gate" for free.
+- Setup (`experiments/e24_stretch.py`): one 3D bag (R 10, half fatty acid), sugar outside 0.03, inside
+  0.03 / 0.1 / 0.2 / 0.4 (1x to 13x outside: osmotic pressure pushes the wall out). 40 small neutral
+  "probe" molecules start inside. No leak rule: they can only get out by squeezing through. 3 seeds x 60k.
+- Result: the wall stretches with the pressure (area per lipid 1.37 -> 1.47, ~7%, steady), but it never
+  opens: no holes, no sugar out, and only 1 of 480 probes got out (at 13x, early on). In this model,
+  stretch alone is not a gate.
+- Caveat: water is not beads here, so the bag can't pull water in and swell the way a real cell does in
+  fresh water. The pressure is only the sugar pushing, and real fatty-acid walls do open brief pores once
+  stretched a few %. Our wall may be too tough, or the push too weak. Plot `runs/e24/e24_stretch.png`.

@@ -1012,3 +1012,28 @@ temperature only (local warmth does not speed reactions).
   tar spread about evenly over both walls (wall tar 20/16, 0/6, 46/41): the pump's size follows the tar
   gap between the walls (r = -0.85). So the pump is real, and it is a difference between bags: whichever
   bag happens to catch more tar goes acid by day. `e22_earth.py` -> `runs/e22/e22w_earth.png`.
+
+## Copying chains without enzymes (e23)
+
+RNA-like copying by base pairing (`alife/chem/copying.py`, `experiments/e23_copy.py`). Monomer = backbone bead +
+base bead (X or Y). X pairs with Y (X-X, Y-Y weakly), touching backbone ends with stacked bases join, bonds can
+break. No copy rule. Flagged shortcuts: one partner per base, joining energy assumed (no fuel), no strand direction.
+6 templates x 10 bases, 300 monomers, box 20, 5 seeds x 100k:
+
+| Setup | guided joins / all joins | correct |
+|---|---|---|
+| steady (pairing 8 kT, stacking 0.5) | 69-70 / ~540 (~13%) | 69/70 |
+| warm/cool cycles (kT 1.1 <-> 1.6) | ~9% | all |
+| drying (box to 60%, join 0.01) | 126 / 1096 (11.5%) vs wet 70 / 527 (13.3%) | 121/126 |
+| drying, join 0.002 | 20 / 322 (6%) vs wet 15 / 122 (12%) | |
+
+Pairing makes accurate copies, but random joins in the water outnumber them ~7:1, so new strands match
+templates no better than shuffled. Drying speeds all joining alike.
+
+## Does a stretched wall open? (e24, gated channels step 1)
+
+`experiments/e24_stretch.py`: 3D bag (R 10, half fatty acid) with sugar inside at 1x / 3x / 7x / 13x the
+outside, 40 probe molecules inside, no leak rule. 3 seeds x 60k each. The wall stretches (area per lipid
+1.37 / 1.39 / 1.41 / 1.47) but never opens: 0 holes, no sugar out, 1 of 480 probes out. Water is implicit,
+so the bag can't take water in: the push may be weaker than in a real cell. Plot `runs/e24/e24_stretch.png`
+(`experiments/e24_plot.py`).
