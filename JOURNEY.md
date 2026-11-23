@@ -334,3 +334,10 @@ Running themes to come back to on camera:
 - Caveat: water is not beads here, so the bag can't pull water in and swell the way a real cell does in
   fresh water. The pressure is only the sugar pushing, and real fatty-acid walls do open brief pores once
   stretched a few %. Our wall may be too tough, or the push too weak. Plot `runs/e24/e24_stretch.png`.
+- Checks (same seed replays the same history): (1) the one probe that got out didn't use a hole. It slid
+  into the oily middle of the wall, sat there ~1200 steps with 8-15 tail beads around it, and came out the
+  other side. That is how real small neutral molecules cross a wall (dissolve through the oil), not a
+  stretch pore. (2) The push is right: summing the engine's sugar-on-wall forces gives a net push of 0.187
+  per unit area at the top level, vs 0.176 expected from the sugar density difference (ideal gas, van 't
+  Hoff). The sugar spreads into a bigger core than it was placed in, so the real inside:outside ratio at the
+  top level is ~6x (0.19 vs 0.03), not 13x. Wall tension = push x R / 2 ~ 1 kT per bead^2.

@@ -1034,6 +1034,6 @@ templates no better than shuffled. Drying speeds all joining alike.
 
 `experiments/e24_stretch.py`: 3D bag (R 10, half fatty acid) with sugar inside at 1x / 3x / 7x / 13x the
 outside, 40 probe molecules inside, no leak rule. 3 seeds x 60k each. The wall stretches (area per lipid
-1.37 / 1.39 / 1.41 / 1.47) but never opens: 0 holes, no sugar out, 1 of 480 probes out. Water is implicit,
+1.37 / 1.39 / 1.41 / 1.47) but never opens: 0 holes, no sugar out, 1 of 480 probes out (it dissolved through the oily middle, no hole). Force check: measured push 0.187 vs 0.176 expected (van 't Hoff); real ratio at the top level is ~6x, not 13x (sugar spreads). Water is implicit,
 so the bag can't take water in: the push may be weaker than in a real cell. Plot `runs/e24/e24_stretch.png`
 (`experiments/e24_plot.py`).
