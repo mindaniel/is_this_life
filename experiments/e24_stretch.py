@@ -69,7 +69,21 @@ def main():
     n0 = w.n
     n_in = int(round(args.osm_in * 4 / 3 * np.pi * r_in ** 3))
     n_out = int(round(args.osm * (args.box ** 3 - 4 / 3 * np.pi * (outer + 1.0) ** 3)))
-    scatter_fast(w, n_in, lambda p: np.linalg.norm(offset(w, p, mid), axis=1) < r_in)
+    inside = lambda p: np.linalg.norm(offset(w, p, mid), axis=1) < r_in
+    try:
+        scatter_fast(w, n_in, inside)
+    except RuntimeError:   # too much to fit at once: place what fits, let it spread out, repeat
+        for _ in range(40):
+            w.step(300, max_force=50)
+            w.step(500)
+            try:
+                scatter_fast(w, n0 + n_in - w.n, inside)
+                break
+            except RuntimeError:
+                pass
+        else:
+            raise RuntimeError(f"could fit only {w.n - n0} of {n_in} sugar inside")
+        print("filled inside in steps, t", w.t, flush=True)
     sugar_in = np.arange(n0, w.n)
     scatter_fast(w, n_out, lambda p: np.linalg.norm(offset(w, p, mid), axis=1) > outer + 1.0)
     n1 = w.n

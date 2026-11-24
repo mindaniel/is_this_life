@@ -1037,3 +1037,9 @@ outside, 40 probe molecules inside, no leak rule. 3 seeds x 60k each. The wall s
 1.37 / 1.39 / 1.41 / 1.47) but never opens: 0 holes, no sugar out, 1 of 480 probes out (it dissolved through the oily middle, no hole). Force check: measured push 0.187 vs 0.176 expected (van 't Hoff); real ratio at the top level is ~6x, not 13x (sugar spreads). Water is implicit,
 so the bag can't take water in: the push may be weaker than in a real cell. Plot `runs/e24/e24_stretch.png`
 (`experiments/e24_plot.py`).
+
+Harder push (inside 0.8 / 1.6, 3 seeds each): the wall tears. Area per lipid peaks ~1.8 / ~2.35, holes
+15-33% of directions, the sealed pocket is lost, ~90% of the sugar and 38-39 of 40 probes leave by 60k.
+Then the bag shrinks back (area ~1.4) and the wall heals (pocket back in 3/6, nearly in the rest); no
+lipids lost. Stretch works as a safety valve (threshold between 0.4 and 0.8), not a selective channel.
+Big runs fill the inside in steps (place what fits, let it spread, repeat).

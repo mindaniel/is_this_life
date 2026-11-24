@@ -341,3 +341,15 @@ Running themes to come back to on camera:
   per unit area at the top level, vs 0.176 expected from the sugar density difference (ideal gas, van 't
   Hoff). The sugar spreads into a bigger core than it was placed in, so the real inside:outside ratio at the
   top level is ~6x (0.19 vs 0.03), not 13x. Wall tension = push x R / 2 ~ 1 kT per bead^2.
+- Harder push (2026-11-24): inside 0.8 and 1.6 (3 seeds each, 60k). Now the wall tears. Area per lipid
+  climbs to ~1.75-1.85 (0.8) and ~2.3-2.4 (1.6, +60%), holes open in 15-33% of directions, the sealed
+  water pocket disappears, and sugar pours out (half gone by ~10k steps, ~90% by 60k, until inside matches
+  outside). Probes go with it (40 -> 1-2). As the sugar leaves, the push drops, the bag shrinks back
+  (area ~1.4) and the holes close: by 60k the wall is whole again and the pocket is back in 3/6 runs,
+  nearly closed in the other 3. Wall lipids stay the same the whole time (no lipids lost).
+- So stretch IS a gate here, but a crude one: below a threshold (between 0.4 and 0.8) nothing; above it the
+  wall rips, dumps its contents, and heals. Real fatty-acid vesicles do this too (tension pores that let
+  contents out and reseal). It's a safety valve, not a channel: it can't pick what goes through.
+- Caveat: the hole count at big stretch could partly be thinning, not true pores; the sugar running out
+  (big beads, hundreds per 1000 steps) is the firm sign that the wall opened. No slice picture yet.
+  Plot `runs/e24/e24_stretch.png` (4 panels now: stretch, holes, sugar inside, probes inside).

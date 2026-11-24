@@ -349,6 +349,9 @@ energy rules + copying with errors + selection.
   longer than monomers.
 - (2026-11-23) e24 stretch (4 sugar levels x 3 seeds x 60k): wall stretches up to ~7% area but never opens (0 holes,
   1/480 probes out). Implicit water: no water inflow, so tension may be too weak.
+- (2026-11-24) e24 harder push (inside 0.8 / 1.6 x 3 seeds): wall tears (area +20% / +60%, holes 15-33%),
+  ~90% of sugar and nearly all probes leave, then the bag shrinks and reseals (3/6 fully by 60k). Stretch =
+  safety valve, threshold between 0.4 and 0.8; not selective. Next options: peptide pores, oligos for copying.
 
 ## Next steps (user's choice; ask before starting a big one)
 
