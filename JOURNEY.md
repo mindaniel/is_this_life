@@ -351,5 +351,10 @@ Running themes to come back to on camera:
   wall rips, dumps its contents, and heals. Real fatty-acid vesicles do this too (tension pores that let
   contents out and reseal). It's a safety valve, not a channel: it can't pick what goes through.
 - Caveat: the hole count at big stretch could partly be thinning, not true pores; the sugar running out
-  (big beads, hundreds per 1000 steps) is the firm sign that the wall opened. No slice picture yet.
+  (big beads, hundreds per 1000 steps) is the firm sign that the wall opened.
+- Pore picture (`runs/e24/e24_pore.png`, `experiments/e24_pore.py`, replay of 1.6 seed 0, matches the log
+  exactly): a real hole. At 5k the wall has a gap ~12 beads across, the slice shows a C-shaped wall with
+  sugar spilling through the gap; at 60k the wall is a closed ring again and the sugar is outside. The
+  1.6 bag was already torn at step 0: filling it in steps took a few thousand steps, so the wall tore
+  while it was being filled. Good footage: before / torn / healed.
   Plot `runs/e24/e24_stretch.png` (4 panels now: stretch, holes, sugar inside, probes inside).

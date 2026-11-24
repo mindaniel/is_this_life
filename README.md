@@ -1042,4 +1042,5 @@ Harder push (inside 0.8 / 1.6, 3 seeds each): the wall tears. Area per lipid pea
 15-33% of directions, the sealed pocket is lost, ~90% of the sugar and 38-39 of 40 probes leave by 60k.
 Then the bag shrinks back (area ~1.4) and the wall heals (pocket back in 3/6, nearly in the rest); no
 lipids lost. Stretch works as a safety valve (threshold between 0.4 and 0.8), not a selective channel.
-Big runs fill the inside in steps (place what fits, let it spread, repeat).
+Big runs fill the inside in steps (place what fits, let it spread, repeat). Picture of a real pore: `runs/e24/e24_pore.png`
+(`experiments/e24_pore.py`): wall from outside + slice, before / torn / healed.
