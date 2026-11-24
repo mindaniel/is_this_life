@@ -1044,3 +1044,24 @@ Then the bag shrinks back (area ~1.4) and the wall heals (pocket back in 3/6, ne
 lipids lost. Stretch works as a safety valve (threshold between 0.4 and 0.8), not a selective channel.
 Big runs fill the inside in steps (place what fits, let it spread, repeat). Picture of a real pore: `runs/e24/e24_pore.png`
 (`experiments/e24_pore.py`): wall from outside + slice, before / torn / healed.
+
+## Do peptides make pores? (e25, gated channels step 2)
+
+`experiments/e25_peptide.py`: the e24 bag with no osmotic push (sugar same inside and out) plus 40 short
+stiff peptides (`molecules.peptide3`: a two-stripe ladder 7 rungs long, about the wall's thickness; one
+stripe water-loving `pep`, the other oily `pho` with polar caps, like alamethicin / magainin). Peptide:lipid
+~1:50. Shortcuts (flagged): helix ready-folded, sequence chosen by hand, and in `--start wall` they start
+spanning the wall (about 5 lipids moved aside for each). 3 setups x 3 seeds x 60k.
+
+| setup | spanning at 60k (of 40) | biggest group | probes inside (of 40) | sugar out |
+|---|---|---|---|---|
+| start in the wall | 31 / 33 / 25 | 3 / 3 / 3 | 40 / 39 / 39 | 0 |
+| start in the water | 0 / 0 / 1 | 6 / 4 / 5 | 40 / 40 / 40 | 0 |
+| control (no peptides) | - | - | 40 / 40 / 40 | 0 |
+
+No pores. Peptides in the wall stay one by one (groups of 2-3 come and go), a few slide out to lie on the
+surface. Peptides in the water stick to the surface (5-12 lying on it) and clump with each other in the water
+(up to 6), but none get into the oily middle. Nothing leaks. Likely reason: with water left out, a polar bead
+in the oily middle only loses some tail attraction, a small cost, so peptides gain little by turning their
+polar sides together; and an empty "channel" holds no water to reward them. Plot `runs/e25/e25_peptide.png`
+(`experiments/e25_plot.py`).

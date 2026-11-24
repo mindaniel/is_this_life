@@ -358,3 +358,25 @@ Running themes to come back to on camera:
   1.6 bag was already torn at step 0: filling it in steps took a few thousand steps, so the wall tore
   while it was being filled. Good footage: before / torn / healed.
   Plot `runs/e24/e24_stretch.png` (4 panels now: stretch, holes, sugar inside, probes inside).
+
+## Ep 17. Can peptides punch a doorway into the wall? (2026-11-24, gated channels step 2)
+
+- Question: e24 showed stretch only rips the wall open all at once. Real cells use proteins as doors. The
+  simplest are short peptides (alamethicin, magainin): stiff rods, oily on one side and water-loving on the
+  other, about as long as the wall is thick. In real walls several of them stand up together with their
+  water-loving sides facing in, making a water channel. Does that happen by itself here?
+- Setup: the e24 bag with no push (sugar the same inside and out), 40 probes inside, and 40 peptides
+  (~1 per 50 lipids). Three setups x 3 seeds x 60k: peptides start standing in the wall one by one; peptides
+  start in the water; plain bag control.
+- Shortcuts (flagged): the peptide comes already folded with a hand-picked pattern; in the wall setup we skip
+  the step of getting in.
+- Result: no pores. In the wall, the peptides stay upright and apart (25-33 of 40 still across the wall at the
+  end; the rest slide out and lie on the surface). Groups of 2-3 touch now and then, never more. From the
+  water, peptides land on the surface and clump in the water, but none get into the oily middle. Probes stay
+  inside (39-40 of 40, same as the plain bag); no sugar leaves.
+- Why (honest guess): our water is invisible. In real life a water-loving side buried in oil is very costly
+  (it loses its hydrogen bonds with water), and a channel full of water pays the peptides back. Here a polar
+  bead in oil only loses a bit of oily attraction, and an empty channel holds no water, so there's little to
+  gain by teaming up. Real alamethicin also needs a voltage across the wall to open; we have none.
+- Plot `runs/e25/e25_peptide.png`. Footage idea: the wall seen from outside with peptides as dots, standing
+  alone.

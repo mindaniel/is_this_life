@@ -41,6 +41,8 @@ ELEMENTS = [
     ("nx",       0,   1.00, 0.0, "#C0392B", "base X of an RNA-like monomer (pairs with Y); hangs off one nbb backbone bead"),
     ("ny",       0,   1.00, 0.0, "#2471A3", "base Y of an RNA-like monomer (pairs with X)"),
     ("nbb",      0,   1.00, 0.0, "#B9A27A", "RNA-like backbone (sugar-phosphate): monomers join into strands here; charge left out"),
+    ("pep",      0,   1.00, 0.0, "#6BAED6", "peptide: backbone + water-loving side chain (serine-like); one stripe of a helix"),
+    ("pho",      0,   1.00, 1.0, "#8C510A", "peptide: oily side chain (leucine/valine-like); the helix's oily stripe"),
 ]
 
 NAMES = [row[0] for row in ELEMENTS]

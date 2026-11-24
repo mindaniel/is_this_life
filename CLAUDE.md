@@ -150,6 +150,9 @@ energy rules + copying with errors + selection.
   (copy score vs shuffled).
 - `experiments/e24_stretch.py` (+ `e24_plot.py`): osmotic stretch test, bag with `--osm-in` sugar vs `--osm` outside,
   probe carbs inside, no Leak; logs area per lipid, holes, probes/sugar inside.
+- Beads `pep` (water-loving) / `pho` (oily) = peptide (end of element table). `molecules.peptide3` = stiff two-stripe
+  ladder (rungs, diagonals sqrt2, bends), `peptide_points` = its bead positions. `experiments/e25_peptide.py`
+  (`--start wall|water`, `--peptides 0` = control; wall start leaves room for each peptide, ~5 lipids) + `e25_plot.py`.
 
 ## Rules of thumb (learned the hard way)
 
@@ -352,6 +355,10 @@ energy rules + copying with errors + selection.
 - (2026-11-24) e24 harder push (inside 0.8 / 1.6 x 3 seeds): wall tears (area +20% / +60%, holes 15-33%),
   ~90% of sugar and nearly all probes leave, then the bag shrinks and reseals (3/6 fully by 60k). Stretch =
   safety valve, threshold between 0.4 and 0.8; not selective. Next options: peptide pores, oligos for copying.
+- (2026-11-24) e25 peptides (40 per bag, wall / water / control x 3 seeds x 60k): no pores. In the wall they stay upright
+  and alone (groups <= 3), some slide out to lie on the surface; from water none get in (land on the surface, clump in
+  water). Probes 39-40/40 inside like the control. Likely cause: implicit water makes a buried polar bead cheap and a
+  channel brings no water reward; also no voltage. Options: polar-in-oil penalty, explicit water beads, voltage.
 
 ## Next steps (user's choice; ask before starting a big one)
 

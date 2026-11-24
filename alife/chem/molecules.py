@@ -165,3 +165,29 @@ def vesicle3(world, center, radius, n_tails=2, area=1.2, head="head"):
             add_lipid3(world, center + r_head * d, -side * d, n_tails, head)
         count += n
     return count
+
+
+def peptide3(world, center, axis, side, length=7, caps=1, oily="pho"):
+    """Stiff amphipathic peptide helix, as a two-stripe ladder centred at `center` along unit `axis`.
+    Stripe A (water-loving "pep") and stripe B (oily, `caps` polar rungs at each end) are one bond apart
+    along unit `side` (perpendicular to axis). Rungs, diagonals and bends hold it straight and flat.
+    Shortcut (flagged): the helix comes ready-folded with a chosen sequence."""
+    r0 = world.rules.bond_r0
+    pts = peptide_points(center, axis, side, length, r0)
+    types = ["pep"] * length + ["pep" if i < caps or i >= length - caps else oily for i in range(length)]
+    bonds = ([(i, i + 1) for i in range(length - 1)] + [(length + i, length + i + 1) for i in range(length - 1)]
+             + [(i, length + i) for i in range(length)])
+    bends = [(i, i + 2) for i in range(length - 2)] + [(length + i, length + i + 2) for i in range(length - 2)]
+    world.add_molecule(pts, types, bonds, bends)
+    n0 = world.n - 2 * length
+    for i in range(length - 1):   # diagonals keep the ladder from shearing
+        world.add_bond(n0 + i, n0 + length + i + 1, np.sqrt(2) * r0)
+
+
+def peptide_points(center, axis, side, length=7, r0=1.0):
+    """Bead positions of peptide3: stripe A (length beads) then stripe B, one bond apart along `side`."""
+    axis = np.asarray(axis, float) / np.linalg.norm(axis)
+    side = np.asarray(side, float) / np.linalg.norm(side)
+    k = (np.arange(length) - (length - 1) / 2) * r0
+    a = np.asarray(center, float) + np.outer(k, axis) - 0.5 * r0 * side
+    return np.vstack([a, a + r0 * side])
