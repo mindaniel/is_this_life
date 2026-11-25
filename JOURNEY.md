@@ -380,3 +380,33 @@ Running themes to come back to on camera:
   gain by teaming up. Real alamethicin also needs a voltage across the wall to open; we have none.
 - Plot `runs/e25/e25_peptide.png`. Footage idea: the wall seen from outside with peptides as dots, standing
   alone.
+
+## Ep 18. Real water: do the peptides leak now? (2026-11-24/25, gated channels step 3)
+
+- Question: e25 found no pores and blamed the invisible water. So we made water real: "wat" beads (each ~4
+  water molecules) that stick to each other and to water-loving beads, but not to oil. A flat wall (half fatty
+  acid) fills the box sideways, water above and below. We count water beads that go all the way through.
+- Picking the water: stickiness 0 / 0.5 / 1 tested (20k). 1 is too sticky (water gets ~3x slower, wall swells
+  and most peptides fall over); 0.5 gives a healthy wall and runny water. Chosen by hand (flagged).
+- Setup: 4 setups x 3 seeds x 100k: no peptides; 16 peptides (1 per 40 lipids); 32 peptides (1 per 17);
+  2 ready-made rings of 6 peptides with water inside (shortcut: a pore put in by hand, to ask "would a pore
+  even stay?").
+- Results:
+  - No peptides and 16 peptides: zero water through, ever (130k steps, 6 runs).
+  - 32 peptides: after a 40-80k wait, water starts leaking in all 3 seeds, then keeps going steadily
+    (~5-6 water beads per 1000 steps). The leak starts when many peptides tip over (upright 32 -> 10-19).
+    Water in the oily middle sits next to peptides far more than chance.
+  - Ready-made rings fall apart within ~10k steps (biggest group 1-3), yet water leaks while the loose,
+    tilted peptides stay near where the ring was (174-233 by 100k), and slows or stops later.
+- So: no neat barrel pore, but a threshold. Few peptides: nothing. Enough peptides: the wall goes leaky
+  around tipped-over peptides. That is close to how real magainin-type peptides are thought to work (a
+  "carpet"/"toroidal" leak above a peptide:lipid threshold), and it emerged: nothing said "leak".
+- Check: the wall bends (+-1.5 beads typical), so a water bead riding over a bend could be miscounted. We
+  rewrote the counter to measure from the wall's local middle and carried every run on 30k: same answer
+  (32 peptides: 152-186 more crossings per run; controls and 16: 0). The "water in oily middle" line drops at
+  100k only because it's measured from the local middle from then on.
+- Shortcuts: water stickiness picked; coarse water; peptides pre-folded and start in the wall; small flat patch
+  (20x20 beads), not a bag; no voltage.
+- Plot `runs/e26full/e26_water.png`; side slices `runs/e26full/e26_side_n32_s2.png` (leaky, bent wall with
+  peptides spanning) vs `e26_side_n0_s0.png` (control). Footage idea: the side slice as a film, blue water
+  threading past green peptide stripes.

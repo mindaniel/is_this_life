@@ -1065,3 +1065,24 @@ surface. Peptides in the water stick to the surface (5-12 lying on it) and clump
 in the oily middle only loses some tail attraction, a small cost, so peptides gain little by turning their
 polar sides together; and an empty "channel" holds no water to reward them. Plot `runs/e25/e25_peptide.png`
 (`experiments/e25_plot.py`).
+
+## Real water and peptide leaks (e26)
+
+`experiments/e26_water.py`: water as beads (`wat`, ~4 water molecules each; sticks to itself and to polar beads
+with depth `--ew`, not to tails). Flat periodic wall (20x20, half fatty acid), water above and below; counts water
+beads that cross from one side to the other (sides measured from the wall's local middle). `--bundle k` starts the
+peptides as ready-made rings (shortcut). `--start state.pkl` carries on. Plot `experiments/e26_plot.py`, side slice
+`experiments/e26_look.py`. ew 0.5 chosen by hand (1 makes water sluggish and swells the wall).
+
+| setup (3 seeds) | water through by 100k | more in 30k recount | peptides upright at end |
+|---|---|---|---|
+| no peptides | 0 / 0 / 0 | 0 / 0 / 0 | - |
+| 16 peptides (1:40 lipids) | 0 / 0 / 0 | 0 / 0 / 0 | 13-15 of 16 |
+| 32 peptides (1:17) | 40 / 56 / 309 | 186 / 152 / 166 | 10-16 of 32 |
+| 2 rings of 6 (shortcut) | 205 / 174 / 233 | 28 / 0 / 52 | 4-6 of 12 |
+
+A threshold leak, not a barrel pore: rings fall apart in ~10k steps; at 1:17 the wall starts leaking after
+40-80k steps, around peptides that tip over (water in the oily middle sits next to peptides more than chance).
+Like magainin's carpet/toroidal leak above a peptide:lipid threshold. Not yet: voltage, a bag, peptides getting in
+from the water.
+

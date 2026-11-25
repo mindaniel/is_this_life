@@ -153,6 +153,9 @@ energy rules + copying with errors + selection.
 - Beads `pep` (water-loving) / `pho` (oily) = peptide (end of element table). `molecules.peptide3` = stiff two-stripe
   ladder (rungs, diagonals sqrt2, bends), `peptide_points` = its bead positions. `experiments/e25_peptide.py`
   (`--start wall|water`, `--peptides 0` = control; wall start leaves room for each peptide, ~5 lipids) + `e25_plot.py`.
+- Bead `wat` (end of table) = explicit water (~4 molecules). `experiments/e26_water.py`: flat periodic wall + water beads,
+  `--ew` water-water/water-polar eps (0.5; 1 too sticky), counts crossings vs the wall's LOCAL middle (`local_offset`),
+  `--bundle k` ready-made peptide rings, `--start pkl` carry on. ~64 ms/step for 6k beads. `e26_plot.py`, `e26_look.py`.
 
 ## Rules of thumb (learned the hard way)
 
@@ -359,6 +362,11 @@ energy rules + copying with errors + selection.
   and alone (groups <= 3), some slide out to lie on the surface; from water none get in (land on the surface, clump in
   water). Probes 39-40/40 inside like the control. Likely cause: implicit water makes a buried polar bead cheap and a
   channel brings no water reward; also no voltage. Options: polar-in-oil penalty, explicit water beads, voltage.
+
+- (2026-11-25) e26 explicit water (`runs/e26full/`, ew 0.5, 4 setups x 3 seeds x 100k + 30k recount): no water crosses
+  without peptides or at 1:40 peptide:lipid; at 1:17 all 3 seeds leak (~5-6 water beads / 1000 steps after a 40-80k wait)
+  around tipped-over peptides. Ready-made 6-rings fall apart in ~10k (leak, then slow/stop). Threshold "carpet" leak, no
+  barrel pore. Next options: voltage, bag version, peptides entering from water.
 
 ## Next steps (user's choice; ask before starting a big one)
 
